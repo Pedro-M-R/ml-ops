@@ -4,6 +4,7 @@ version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = [
     "pandas==2.2.3",
+    "pandera==0.26.1",
     "scikit-learn==1.5.2",
     "pydantic-settings==2.6.1",
 ]
