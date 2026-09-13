@@ -9,3 +9,4 @@ models/
 data/*
 !data/.gitkeep
 !data/churn.csv
+!data/*.dvc
