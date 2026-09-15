@@ -31,30 +31,3 @@ def validar_dados(df: pd.DataFrame) -> pd.DataFrame:
         lazy=True,
     )
 
-from pandera.errors import SchemaErrors
-
-
-def test_validar_dados_lazy_encontra_varios_erros(raw_df):
-    quebrado = raw_df.copy()
-
-    quebrado.loc[0, "gender"] = "Alien"
-    quebrado.loc[0, "tenure"] = 500
-    quebrado.loc[0, "MonthlyCharges"] = -100
-    quebrado.loc[0, "Churn"] = "Talvez"
-
-    with pytest.raises(SchemaErrors) as exc_info:
-        validar_dados(quebrado)
-
-    erros = exc_info.value.failure_cases
-
-    print("\nERROS ENCONTRADOS:")
-    print(erros)
-
-    colunas_com_erro = set(
-        erros["column"].dropna()
-    )
-
-    assert "gender" in colunas_com_erro
-    assert "tenure" in colunas_com_erro
-    assert "MonthlyCharges" in colunas_com_erro
-    assert "Churn" in colunas_com_erro
