@@ -7,10 +7,15 @@ dependencies = [
     "pandera==0.26.1",
     "scikit-learn==1.5.2",
     "pydantic-settings==2.6.1",
+    "mlflow>=3,<4",
+    "pyyaml>=6.0.3",
 ]
 
 [dependency-groups]
-dev = ["pytest==8.3.3"]
+dev = [
+    "dvc>=3.67.1",
+    "pytest==8.3.3",
+]
 
 [project.scripts]
 churn-train = "churn.model:cli"

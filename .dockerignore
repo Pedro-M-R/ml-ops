@@ -5,3 +5,6 @@ __pycache__/
 *.egg-info/
 data/
 models/
+mlruns/
+mlartifacts/
+mlflow.db*

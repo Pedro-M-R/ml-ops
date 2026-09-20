@@ -1,0 +1,10 @@
+stages:
+  treino:
+    cmd: uv run python -m churn.model
+    deps:
+      - data/churn.csv
+      - src/churn
+      - pyproject.toml
+      - uv.lock
+    outs:
+      - models/model.pkl
