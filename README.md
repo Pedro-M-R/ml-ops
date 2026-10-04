@@ -1,6 +1,30 @@
-# Churn
+# Churn: tuning, registro e deploy
 
-Projeto-fio-condutor do curso de MLOps: predição de churn (tabular).
+Projeto de predição de churn com seleção por validação cruzada, MLflow Model Registry e API.
+
+**Documentação atual:** [como executar em outro PC](docs/guia_execucao.md) e
+[resumo para até 3 slides](docs/resumo_3_slides.md). Resultados reais:
+`reports/selection.json` e `reports/comparison.csv`. Pacote transportável:
+`dist/churn-portatil.zip`.
+
+```bash
+python -m pip install uv==0.12.17
+python -m uv sync --locked --python 3.13
+python -m uv run churn-tune --jobs 2
+python -m uv run churn-ui
+```
+
+Em outro terminal, `python -m uv run churn-serve` inicia a API em
+http://127.0.0.1:8000 com o modelo selecionado. Para usar o modelo do ZIP,
+o retreino é opcional. O tracking atual usa `mlflow.db` (SQLite) e
+`mlartifacts/`; os runs antigos em `mlruns/` foram preservados.
+
+## Material anterior (histórico)
+
+O restante desta página documenta os exercícios legados. Para seleção e deploy,
+use o guia atual acima: `churn-tune` substitui o grid que comparava candidatos
+no teste. O `dvc repro` legado ainda produz `models/model.pkl`, não o champion.
+As instruções abaixo sobre tracking em `mlruns/` descrevem o backend antigo.
 
 ## Estrutura
 

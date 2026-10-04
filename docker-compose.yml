@@ -1,9 +1,17 @@
 services:
+  api:
+    build: .
+    ports:
+      - "127.0.0.1:8000:8000"
   treino:
     build: .
+    profiles: ["treino"]
+    environment:
+      MLFLOW_TRACKING_URI: sqlite:////app/runtime/mlflow.db
     volumes:
-      - ./src:/app/src
       - ./data:/app/data
-      - ./models:/app/models
-      - ./mlruns:/app/mlruns
-    command: churn-train
+      - ./deployment:/app/deployment
+      - ./reports:/app/reports
+      - ./mlartifacts:/app/mlartifacts
+      - ./runtime:/app/runtime
+    command: churn-tune --jobs 2

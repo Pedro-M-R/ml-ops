@@ -8,3 +8,8 @@ models/
 mlruns/
 mlartifacts/
 mlflow.db*
+dist/
+reports/*
+!reports/selection.json
+runtime/
+*.log

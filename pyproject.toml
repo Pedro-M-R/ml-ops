@@ -19,6 +19,10 @@ dev = [
 
 [project.scripts]
 churn-train = "churn.model:cli"
+churn-tune = "churn.tuning:cli"
+churn-serve = "churn.deploy:serve"
+churn-ui = "churn.deploy:ui"
+churn-predict = "churn.deploy:predict"
 
 [build-system]
 requires = ["hatchling"]
@@ -29,3 +33,7 @@ packages = ["src/churn"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.uv]
+# Compatível com pastas sincronizadas (OneDrive), que podem recusar hardlinks.
+link-mode = "copy"

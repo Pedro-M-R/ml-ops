@@ -1,0 +1,20 @@
+{
+  "health_status": 200,
+  "prediction_rows_verified": 3,
+  "probabilities": [
+    [
+      0.7957191833047403,
+      0.2042808166952596
+    ],
+    [
+      0.642656846686909,
+      0.35734315331309097
+    ],
+    [
+      0.8350824965023457,
+      0.1649175034976543
+    ]
+  ],
+  "invalid_input_status": 400,
+  "registered_version": 1
+}

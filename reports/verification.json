@@ -1,0 +1,13 @@
+{
+  "platform": "Windows-11-10.0.26200-SP0",
+  "python": "3.13.2",
+  "pytest_passed": 22,
+  "fresh_environment_installed_from_lock": true,
+  "relocated_prediction_rows_verified": 7043,
+  "max_probability_difference": 0.0,
+  "api_verified": true,
+  "mlflow_ui_http_status": 200,
+  "docker_compose_config_valid": true,
+  "docker_build_executed": false,
+  "cloud_deploy_executed": false
+}

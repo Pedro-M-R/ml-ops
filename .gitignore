@@ -15,3 +15,8 @@ data/*
 mlruns/
 mlartifacts/
 mlflow.db*
+deployment/
+dist/
+predictions.csv
+runtime/
+*.log
