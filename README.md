@@ -2,8 +2,7 @@
 
 Projeto de predição de churn com seleção por validação cruzada, MLflow Model Registry e API.
 
-**Documentação atual:** [como executar em outro PC](docs/guia_execucao.md) e
-[resumo para até 3 slides](docs/resumo_3_slides.md). Resultados reais:
+**Documentação atual:** [como executar em outro PC]Resultados reais:
 `reports/selection.json` e `reports/comparison.csv`. Pacote transportável:
 `dist/churn-portatil.zip`.
 
