@@ -8,7 +8,13 @@ Python e as versões de `uv.lock`. Não copie o ambiente `.venv`.
 
 ## Usar o modelo pronto
 
-Extraia `dist/churn-portatil.zip`, abra um terminal na pasta `churn-portatil`:
+Extraia `dist/churn-portatil.zip` e abra um terminal na pasta `churn-portatil`
+(ou na pasta `ml-ops`, se estiver usando o repositório).
+
+No Windows PowerShell, se outro ambiente estiver ativo, como `(.venv-1)`,
+execute `deactivate` antes dos comandos abaixo. O `uv` usa a `.venv` do projeto;
+não é necessário ativá-la. Isso evita usar um Python sem `uv` ou receber o aviso
+de que o ambiente ativo não corresponde ao ambiente do projeto.
 
 ```bash
 python -m pip install uv==0.12.17
@@ -25,6 +31,20 @@ Para alterar endereço e porta, use, por exemplo,
 O ZIP contém código, dependências fixadas, pipeline treinado, relatórios e,
 quando criado com `--include-data`, CSV e ponteiro DVC para retreino.
 O banco original do MLflow não é necessário para o modelo exportado.
+
+Com o projeto já instalado, no Windows também é possível iniciar diretamente,
+independentemente do `uv` disponível no Python ativo:
+
+```powershell
+.\.venv\Scripts\churn-serve.exe
+```
+
+### Dúvidas ao iniciar
+
+Uma mensagem como `Uvicorn running on http://127.0.0.1:8000` indica sucesso.
+Abra esse endereço: `/` redireciona para `/docs`. Uma resposta HTTP 204 para
+`/favicon.ico` é normal. Após atualizar o código, encerre o servidor com Ctrl+C
+e execute novamente `python -m uv run churn-serve` para aplicar as mudanças.
 
 ## Usar a API FastAPI
 

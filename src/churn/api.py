@@ -9,7 +9,7 @@ import pandas as pd
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.openapi.utils import get_openapi
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 from mlflow.exceptions import MlflowException
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -174,6 +174,14 @@ def create_app(model_uri: str | None = None) -> FastAPI:
         ]
         status = 400 if request.url.path == "/invocations" else 422
         return JSONResponse(status_code=status, content={"detail": errors})
+
+    @application.get("/", include_in_schema=False)
+    def root():
+        return RedirectResponse(url="/docs")
+
+    @application.get("/favicon.ico", include_in_schema=False, status_code=204)
+    def favicon():
+        return Response(status_code=204)
 
     @application.get("/health", response_model=HealthResponse, tags=["Saúde"])
     @application.get("/ping", response_model=HealthResponse, tags=["Saúde"])
