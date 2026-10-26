@@ -18,9 +18,20 @@ python -m uv run churn-serve
 
 Em Linux/macOS use `python3` se `python` não existir. A API fica em
 http://127.0.0.1:8000; mantenha o terminal aberto e use Ctrl+C para encerrar.
+O comando inicia **FastAPI com Uvicorn** e carrega o modelo uma vez na
+inicialização. Por padrão, usa o pipeline indicado em `reports/selection.json`.
+Para alterar endereço e porta, use, por exemplo,
+`python -m uv run churn-serve --host 127.0.0.1 --port 8080`.
 O ZIP contém código, dependências fixadas, pipeline treinado, relatórios e,
 quando criado com `--include-data`, CSV e ponteiro DVC para retreino.
 O banco original do MLflow não é necessário para o modelo exportado.
+
+## Usar a API FastAPI
+
+A documentação interativa está em http://127.0.0.1:8000/docs (Swagger UI) e
+http://127.0.0.1:8000/redoc (ReDoc), com os esquemas de entrada e saída.
+`GET /health` e `GET /ping` retornam HTTP 200 e `{"status":"ok"}` quando
+a aplicação está pronta.
 
 Em outro terminal, faça um teste real da API:
 
@@ -40,9 +51,49 @@ Com curl:
 curl -X POST http://127.0.0.1:8000/invocations -H "Content-Type: application/json" --data-binary @reports/example_request.json
 ```
 
-Cada linha de `predictions` retorna `[P(não churn), P(churn)]`. O JSON de exemplo
-mostra colunas e tipos. Valores numéricos ausentes podem ser `null`; categorias
-novas são aceitas. Colunas obrigatórias ausentes são rejeitadas.
+`POST /invocations` mantém os formatos `dataframe_split` (como no exemplo) e
+`dataframe_records` (lista de objetos com nomes de colunas). O lote deve ter de
+1 a 1.000 linhas; em `dataframe_records`, todos os registros devem conter as
+mesmas colunas. Cada linha de `predictions` retorna `[P(não churn), P(churn)]`.
+Entradas inválidas retornam HTTP 400.
+
+Para obter probabilidade e classe em campos nomeados, use `POST /predict`.
+O corpo contém `customers`, uma lista de 1 a 1.000 clientes, e `threshold`,
+opcional, entre 0 e 1 inclusive (padrão: `0.5`). Cada cliente contém as 19 entradas
+de `reports/example_request.json`. Os campos numéricos são obrigatórios e
+aceitam `null`: `SeniorCitizen` aceita apenas `0` ou `1` quando preenchido;
+`tenure`, `MonthlyCharges` e `TotalCharges` aceitam números finitos não negativos.
+Os demais campos são strings obrigatórias e aceitam categorias novas.
+`customerID` é opcional, não participa do cálculo e só aparece na resposta
+quando foi enviado com valor não nulo. Erros de validação retornam HTTP 422 com
+detalhes; incompatibilidades entre a entrada e o artefato do modelo retornam
+HTTP 400.
+
+Este exemplo no PowerShell converte as linhas do JSON existente para `/predict`:
+
+```powershell
+$example = Get-Content reports/example_request.json -Raw | ConvertFrom-Json
+$customers = @(foreach ($row in $example.dataframe_split.data) {
+    $customer = [ordered]@{}
+    for ($i = 0; $i -lt $example.dataframe_split.columns.Count; $i++) {
+        $customer[$example.dataframe_split.columns[$i]] = $row[$i]
+    }
+    $customer
+})
+$body = @{ customers = $customers; threshold = 0.5 } | ConvertTo-Json -Depth 10
+Invoke-RestMethod -Uri http://127.0.0.1:8000/predict -Method Post -ContentType 'application/json' -Body $body
+```
+
+A resposta contém `predictions`, com `churn_probability` e `churn_prediction`
+(`0` ou `1`) para cada cliente, na ordem enviada, e o `threshold` aplicado.
+A classe é `1` quando a probabilidade de churn é maior ou igual ao limiar.
+Por exemplo, uma probabilidade de `0.7` com limiar `0.5` produz:
+
+```json
+{"predictions":[{"churn_probability":0.7,"churn_prediction":1}],"threshold":0.5}
+```
+
+## Prever um CSV
 
 Para prever diretamente um CSV, sem API:
 
@@ -146,10 +197,15 @@ candidatos no teste: não o use para selecionar o deploy. `dvc repro` ainda gera
 
 ## Testes e pacote
 
-Nesta entrega, 22 testes passaram. A API foi verificada por HTTP (saúde,
-probabilidades e rejeição de entrada inválida). Um ambiente novo instalado a
-partir do lock, em outra pasta, reproduziu exatamente as 7.043 previsões.
-Os detalhes estão em `reports/verification.json` e `reports/api_verification.json`.
+A atualização FastAPI foi validada com **132 testes aprovados** e requisições
+HTTP reais: saúde, documentação, os dois formatos de `/invocations`, `/predict`
+com limiares 0,5 e 0,9 e rejeição de entradas inválidas. As probabilidades dos
+três clientes de exemplo coincidiram com as do pipeline exportado. O relatório
+atual está em `reports/api_verification.json`.
+
+Antes da migração, um ambiente novo instalado a partir do lock, em outra pasta,
+reproduziu exatamente as 7.043 previsões; essa verificação histórica está em
+`reports/verification.json`. Para executar a suíte atual e atualizar o pacote:
 
 ```bash
 python -m uv run pytest -q
@@ -162,6 +218,7 @@ histórico MLflow local e registra a nova versão.
 
 ## Fontes técnicas
 
+- [FastAPI: inicialização e encerramento com lifespan](https://fastapi.tiangolo.com/advanced/events/)
 - [MLflow: Model Registry e aliases](https://www.mlflow.org/docs/latest/ml/model-registry/workflow/)
 - [MLflow: pipelines sklearn e dependências](https://mlflow.org/docs/latest/api_reference/python_api/mlflow.sklearn.html)
 - [Scikit-learn: validação cruzada e teste](https://scikit-learn.org/stable/modules/cross_validation.html)

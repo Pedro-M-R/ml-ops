@@ -1,8 +1,8 @@
 # Churn: tuning, registro e deploy
 
-Projeto de predição de churn com seleção por validação cruzada, MLflow Model Registry e API.
+Projeto de predição de churn com seleção por validação cruzada, MLflow Model Registry e API FastAPI.
 
-**Documentação atual:** [como executar em outro PC]Resultados reais:
+**Documentação atual:** [como executar em outro PC](docs/guia_execucao.md). Resultados reais:
 `reports/selection.json` e `reports/comparison.csv`. Pacote transportável:
 `dist/churn-portatil.zip`.
 
@@ -13,10 +13,24 @@ python -m uv run churn-tune --jobs 2
 python -m uv run churn-ui
 ```
 
-Em outro terminal, `python -m uv run churn-serve` inicia a API em
-http://127.0.0.1:8000 com o modelo selecionado. Para usar o modelo do ZIP,
-o retreino é opcional. O tracking atual usa `mlflow.db` (SQLite) e
+Em outro terminal, `python -m uv run churn-serve` inicia FastAPI com Uvicorn em
+http://127.0.0.1:8000 e carrega uma vez o modelo indicado em `reports/selection.json`.
+Use `/docs` para testar a API no Swagger UI ou `/redoc` para consultar o ReDoc.
+`GET /health` e `GET /ping` retornam `{"status":"ok"}`. `POST /predict` recebe
+`customers` e um `threshold` opcional (padrão: `0.5`) e devolve probabilidade e
+classe de churn por cliente. `POST /invocations` mantém os formatos
+`dataframe_split` e `dataframe_records` e retorna a matriz de probabilidades.
+O [guia de execução](docs/guia_execucao.md#usar-a-api-fastapi) contém exemplos e
+regras de validação. As opções `--host`, `--port` e
+`--model models:/churn-champion@champion` continuam disponíveis.
+
+Para usar o modelo do ZIP, o retreino é opcional.
+O tracking atual usa `mlflow.db` (SQLite) e
 `mlartifacts/`; os runs antigos em `mlruns/` foram preservados.
+
+A API fica em `src/churn/api.py`; `src/churn/deploy.py` fornece o comando
+`churn-serve`. Para validar o projeto atualizado, execute
+`python -m uv run pytest -q`.
 
 ## Material anterior (histórico)
 
@@ -29,6 +43,8 @@ As instruções abaixo sobre tracking em `mlruns/` descrevem o backend antigo.
 
 ```
 src/churn/
+├── api.py        # aplicação FastAPI e validação de requisições
+├── deploy.py     # carregamento do modelo, inferência e churn-serve
 ├── data.py       # carga + validação
 ├── features.py   # transformações puras
 ├── model.py      # treino instrumentado com MLflow

@@ -1,5 +1,17 @@
 {
   "health_status": 200,
+  "health_body": {
+    "status": "ok"
+  },
+  "ping_status": 200,
+  "docs_status": 200,
+  "openapi_status": 200,
+  "openapi_paths_verified": [
+    "/health",
+    "/ping",
+    "/predict",
+    "/invocations"
+  ],
   "prediction_rows_verified": 3,
   "probabilities": [
     [
@@ -15,6 +27,48 @@
       0.1649175034976543
     ]
   ],
+  "dataframe_records_rows_verified": 3,
+  "predict_rows_verified_per_threshold": 3,
+  "predict_results": [
+    {
+      "predictions": [
+        {
+          "customerID": "api-test-001",
+          "churn_probability": 0.2042808166952596,
+          "churn_prediction": 0
+        },
+        {
+          "churn_probability": 0.35734315331309097,
+          "churn_prediction": 0
+        },
+        {
+          "churn_probability": 0.1649175034976543,
+          "churn_prediction": 0
+        }
+      ],
+      "threshold": 0.5
+    },
+    {
+      "predictions": [
+        {
+          "customerID": "api-test-001",
+          "churn_probability": 0.2042808166952596,
+          "churn_prediction": 0
+        },
+        {
+          "churn_probability": 0.35734315331309097,
+          "churn_prediction": 0
+        },
+        {
+          "churn_probability": 0.1649175034976543,
+          "churn_prediction": 0
+        }
+      ],
+      "threshold": 0.9
+    }
+  ],
+  "customer_id_echo_verified": true,
   "invalid_input_status": 400,
+  "predict_invalid_input_status": 422,
   "registered_version": 1
 }

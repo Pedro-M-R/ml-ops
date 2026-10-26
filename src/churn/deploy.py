@@ -2,10 +2,8 @@
 
 import argparse
 import json
-import os
 import subprocess
 import sys
-import sysconfig
 from pathlib import Path
 
 import pandas as pd
@@ -21,20 +19,16 @@ def selected_path():
 
 
 def serve():
-    parser = argparse.ArgumentParser(description="Serve o pipeline exportado, sem depender do banco MLflow.")
+    import uvicorn
+
+    from churn.api import create_app
+
+    parser = argparse.ArgumentParser(description="Inicia a API FastAPI com o pipeline exportado de churn.")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--model", help="Pasta exportada ou URI models:/nome/versão")
     args = parser.parse_args()
-    environment = os.environ.copy()
-    environment["PATH"] = sysconfig.get_path("scripts") + os.pathsep + environment.get("PATH", "")
-    if args.model and args.model.startswith("models:"):
-        from churn.tracking import configure_tracking
-        environment["MLFLOW_TRACKING_URI"] = configure_tracking()
-    raise SystemExit(subprocess.call([
-        sys.executable, "-m", "mlflow", "models", "serve", "-m", args.model or selected_path(),
-        "--env-manager", "local", "--host", args.host, "--port", str(args.port),
-    ], env=environment))
+    uvicorn.run(create_app(model_uri=args.model), host=args.host, port=args.port)
 
 
 def ui():
