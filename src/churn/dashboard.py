@@ -1,4 +1,4 @@
-"""Churn Radar: consulta por customerID com a base e o modelo existentes."""
+"""Permanência: consulta por customerID com a base e o modelo existentes."""
 
 import json
 import os
@@ -21,76 +21,90 @@ CLASSIFICATION = {
     1: "NÃO — tende a cancelar o serviço",
 }
 
-RADAR_STYLE = """<style>
-    :root {--radar-ink:#111c36; --radar-muted:#69738c; --radar-purple:#5143e9;}
-    .stApp {
-        background: radial-gradient(ellipse at 15% 5%, #eaeaff 0%, transparent 48%),
-                    linear-gradient(135deg, #f3f3fd 0%, #f8f9fe 65%, #f0f2fb 100%);
-        color:var(--radar-ink);
-    }
+APP_STYLE = """<style>
+    :root {--ink:#173532; --muted:#74817a; --accent:#176b58; --paper:#f5f5ef;}
+    .stApp {background:#f5f5ef;color:var(--ink);}
     [data-testid="stHeader"] {background:transparent;}
-    [data-testid="stMainBlockContainer"] {max-width:1040px; padding:3rem 2.2rem 2rem;}
-    h1 {text-align:center; font-size:clamp(2rem,4.2vw,2.8rem)!important;
-        line-height:1.17!important; font-weight:780!important; letter-spacing:-.045em!important;
-        color:var(--radar-ink)!important; padding:0!important; margin:0 auto 1rem!important; max-width:820px;}
-    .radar-brand {display:flex; justify-content:center; align-items:center; gap:12px;
-        margin:0 auto 2.2rem; color:var(--radar-purple); font-size:11px; font-weight:800; letter-spacing:.21em;}
-    .radar-mark {width:36px;height:36px;display:grid;place-items:center;background:var(--radar-purple);
-        color:white;border-radius:12px;box-shadow:0 6px 15px #5143e928;}
-    .radar-subtitle {text-align:center;max-width:610px;margin:.25rem auto 1.2rem;color:var(--radar-muted);
-        font-size:15px;line-height:1.8;}
-    .radar-subtitle code {background:#eeecff;color:#5143e9;padding:3px 6px;border-radius:6px;font-size:13px;}
-    .radar-meta {display:flex;justify-content:center;align-items:center;gap:14px;flex-wrap:wrap;
-        font-size:11px;color:#79829a;margin-bottom:1.8rem;}
-    .radar-meta strong {font-weight:650;color:#59647c;}
-    .status-dot {display:inline-block;width:6px;height:6px;border-radius:50%;background:#26a886;margin-right:6px;}
-    .status-dot.waiting {background:#c58b29;}
-    .st-key-lookup_card {background:#fff;border:1px solid #e0e4f4!important;border-radius:26px!important;
-        padding:30px 34px!important;box-shadow:0 22px 50px -30px #23305155;margin-bottom:.5rem;}
-    .card-eyebrow {color:#8b91a8;font-weight:750;font-size:10px;letter-spacing:.15em;margin:0 0 18px;}
-    .st-key-customer_id label p {font-size:12px;font-weight:600;color:#495776;}
-    .st-key-customer_id [data-baseweb="input"] {height:54px;border:1px solid #dfe3f4;border-radius:14px;
-        background:#fff;box-shadow:none;}
-    .st-key-customer_id input {font-size:14px;padding-left:16px;color:#17223c;}
-    .st-key-customer_id [data-baseweb="input"]:focus-within {border-color:#7062f0;box-shadow:0 0 0 3px #5143e911;}
-    .st-key-lookup_card [data-testid="stFormSubmitButton"] button {
-        height:54px;border:none;border-radius:14px;background:#5143e9;color:white;
-        font-size:13px;font-weight:650;box-shadow:0 8px 18px -8px #5143e9a0;transition:background .18s,transform .18s;}
-    .st-key-lookup_card [data-testid="stFormSubmitButton"] button:hover {background:#4034cd;transform:translateY(-1px);}
-    .st-key-lookup_card [data-testid="stFormSubmitButton"] button:focus-visible {outline:3px solid #b8b0ff;outline-offset:3px;}
-    .examples-label {font-size:11px;color:#77819b;margin:6px 0 3px;}
-    .st-key-examples [data-testid="stButton"] button {
-        background:#fff;color:#6253e9;border:1px solid #e1dffa;border-radius:999px;
-        min-height:32px;padding:3px 12px;font-weight:500;font-size:11px;box-shadow:none;}
-    .st-key-examples [data-testid="stButton"] button:hover {background:#f2efff;border-color:#b8adff;}
-    .st-key-prediction_card {background:white;border:1px solid #e0e4f4!important;border-radius:24px!important;
-        padding:28px 34px!important;box-shadow:0 18px 40px -30px #23305155;margin-top:10px;}
-    .result-heading {display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:16px;}
-    .result-eyebrow {font-size:10px;letter-spacing:.12em;font-weight:750;color:#8b91a8;margin:0 0 5px;}
-    .result-id {font-size:19px;font-weight:750;color:#192641;margin:0;}
-    .class-badge {font-size:11px;font-weight:650;border-radius:999px;padding:7px 12px;white-space:nowrap;}
-    .class-badge.stay {background:#edf9f4;color:#187d5e;}
-    .class-badge.leave {background:#fff3e7;color:#a45a14;}
-    .verdict {font-size:22px;font-weight:750;letter-spacing:-.02em;line-height:1.35;margin:0 0 6px;color:#17223c;}
-    .verdict-description {font-size:12px;line-height:1.7;color:#79829a;margin:0 0 20px;}
-    .st-key-prediction_card [data-testid="stMetric"] {background:#f6f5ff;border:1px solid #eeebff;border-radius:16px;padding:16px 20px;}
-    .st-key-prediction_card [data-testid="stMetricLabel"] p {color:#747496;font-size:12px;}
-    .st-key-prediction_card [data-testid="stMetricValue"] {color:#5143e9;font-weight:750;font-size:36px;}
-    .st-key-prediction_card [data-testid="stProgress"] > div > div {background:#ebe8ff;}
-    .st-key-prediction_card [data-testid="stProgress"] > div > div > div {background:#6959f0;}
-    .radar-footer {max-width:700px;margin:18px auto 0;text-align:center;color:#838ca3;font-size:11px;line-height:1.9;}
-    .radar-footer strong {color:#6a7390;font-weight:550;}
-    [data-testid="stExpander"] {border-color:#e5e7f2;border-radius:12px;background:transparent;}
-    [data-testid="stExpander"] summary p {font-size:12px;color:#78819a;}
-    @media(max-width:640px) {
-        [data-testid="stMainBlockContainer"] {padding:2rem 1rem 1.5rem;}
-        .radar-brand {margin-bottom:1.7rem;}
-        .st-key-lookup_card,.st-key-prediction_card {padding:22px 18px!important;border-radius:20px!important;}
-        .radar-subtitle {font-size:13px;}
-        .radar-meta {gap:10px;font-size:10px;}
+    [data-testid="stMainBlockContainer"] {max-width:1240px;padding:2.4rem 2.5rem 2rem;}
+    .app-bar {display:flex;justify-content:space-between;align-items:center;gap:20px;
+        padding-bottom:22px;margin-bottom:40px;border-bottom:1px solid #dce2d7;flex-wrap:wrap;}
+    .wordmark {display:flex;align-items:center;gap:12px;color:#173532;}
+    .brand-symbol {display:grid;place-items:center;width:37px;height:37px;background:#173532;
+        border-radius:9px;color:#d6edbb;font-size:23px;font-weight:750;}
+    .brand-name {font-size:16px;font-weight:750;letter-spacing:-.04em;}
+    .brand-subtitle {font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:#7b877c;margin-top:2px;}
+    .app-status {display:flex;gap:18px;align-items:center;font-size:11px;color:#7a857c;flex-wrap:wrap;}
+    .status-dot {display:inline-block;width:6px;height:6px;border-radius:50%;background:#368663;margin-right:6px;}
+    .status-dot.waiting {background:#b98436;}
+    .intro-eyebrow {font-size:10px;font-weight:750;color:#8a957d;letter-spacing:.16em;margin:12px 0 18px;}
+    h1 {font-family:Georgia,'Times New Roman',serif!important;font-weight:400!important;
+        font-size:clamp(2.5rem,4.2vw,3.4rem)!important;line-height:1.08!important;
+        letter-spacing:-.055em!important;text-align:left!important;color:#173532!important;
+        padding:0!important;margin:0 0 22px!important;max-width:440px;}
+    .intro-description {font-size:14px;color:#74817a;line-height:1.9;max-width:360px;margin:0 0 28px;}
+    .source-card {position:relative;overflow:hidden;background:#193f37;border-radius:14px;
+        padding:24px 26px;color:#e7eee0;max-width:365px;margin-top:30px;}
+    .source-card:after {content:"";position:absolute;width:165px;height:165px;border:1px solid #ffffff13;
+        border-radius:50%;top:-82px;right:-45px;box-shadow:0 0 0 25px #ffffff04,0 0 0 50px #ffffff03;pointer-events:none;}
+    .source-label {font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:#b0c6ad;margin-bottom:14px;}
+    .source-count {font-family:Georgia,serif;font-size:52px;font-weight:400;line-height:1;color:#e6f0c8;letter-spacing:-.04em;}
+    .source-description {font-size:12px;color:#c1d1bc;line-height:1.8;margin:7px 0 22px;}
+    .source-foot {display:flex;justify-content:space-between;gap:15px;border-top:1px solid #ffffff1c;
+        padding-top:14px;color:#abc1a9;font-size:10px;}
+    .source-foot strong {color:#d1e1c5;font-weight:500;}
+    .st-key-lookup_card {background:white;border:1px solid #dfe5da!important;border-radius:16px!important;
+        padding:26px 30px!important;box-shadow:0 3px 5px #223b2803;margin-bottom:4px;}
+    .card-eyebrow {font-size:10px;font-weight:750;letter-spacing:.12em;color:#8a987f;margin:0 0 10px;}
+    .lookup-heading {font-size:24px;font-weight:650;letter-spacing:-.045em;color:#203c32;margin:0 0 6px;}
+    .lookup-description {font-size:12px;color:#86907e;margin:0 0 20px;line-height:1.6;}
+    .st-key-customer_id label p {font-size:12px;font-weight:550;color:#52604c;}
+    .st-key-customer_id [data-baseweb="input"] {height:50px;background:#f9faf6;
+        border:1px solid #dce4d5;border-radius:8px;box-shadow:none;}
+    .st-key-customer_id input {font-size:14px;padding-left:14px;color:#203c32;}
+    .st-key-customer_id [data-baseweb="input"]:focus-within {border-color:#428875;box-shadow:0 0 0 3px #176b580e;}
+    .st-key-lookup_card [data-testid="stFormSubmitButton"] button {height:47px;
+        background:#176b58;border:none;border-radius:8px;color:white;box-shadow:none;font-weight:600;font-size:13px;}
+    .st-key-lookup_card [data-testid="stFormSubmitButton"] button:hover {background:#115442;color:white;}
+    .st-key-lookup_card [data-testid="stFormSubmitButton"] button:focus-visible {outline:3px solid #a7cab1;outline-offset:3px;}
+    .examples-label {font-size:10px;color:#96a08d;margin:14px 0 5px;letter-spacing:.04em;}
+    .st-key-examples [data-testid="stButton"] button {min-height:35px;background:#f6f8f2;
+        color:#58734d;border:1px solid #e4e9dd;border-radius:6px;box-shadow:none;font-size:11px;font-weight:500;}
+    .st-key-examples [data-testid="stButton"] button:hover {background:#eaf0e2;border-color:#c9d9bc;}
+    .st-key-prediction_card {background:#fff;border:1px solid #dfe5da!important;border-radius:16px!important;
+        padding:24px 28px!important;box-shadow:none;margin-top:8px;}
+    .result-heading {display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px;}
+    .result-eyebrow {font-size:10px;font-weight:750;letter-spacing:.11em;color:#8a987f;margin:0 0 7px;}
+    .result-id {font-size:17px;font-weight:650;color:#203c32;margin:0;}
+    .class-badge {font-size:10px;font-weight:600;border-radius:5px;padding:6px 9px;}
+    .class-badge.stay {background:#eaf4e6;color:#42733f;}
+    .class-badge.leave {background:#fbefde;color:#a26924;}
+    .verdict {font-size:21px;font-weight:650;letter-spacing:-.035em;line-height:1.3;margin:0 0 8px;color:#203c32;}
+    .verdict-description {font-size:12px;line-height:1.7;color:#87917f;margin:0 0 20px;}
+    .st-key-prediction_card [data-testid="stMetric"] {background:#f4f7ef;border:0;border-radius:8px;padding:14px 16px;}
+    .st-key-prediction_card [data-testid="stMetricLabel"] p {color:#7c8e70;font-size:11px;}
+    .st-key-prediction_card [data-testid="stMetricValue"] {font-family:Georgia,serif;color:#305c44;font-size:33px;font-weight:400;}
+    .st-key-prediction_card [data-testid="stProgress"] > div > div {background:#e2eada;}
+    .st-key-prediction_card [data-testid="stProgress"] > div > div > div {background:#5d8964;}
+    .empty-result {border:1px dashed #d5dfcd;border-radius:14px;padding:24px;text-align:center;margin-top:10px;}
+    .empty-icon {display:inline-grid;place-items:center;width:32px;height:32px;border-radius:50%;
+        background:#e8eee1;color:#648360;font-size:17px;margin-bottom:10px;}
+    .empty-title {color:#77886d;font-size:12px;font-weight:600;margin:0 0 5px;}
+    .empty-description {color:#9aa58f;font-size:11px;line-height:1.6;margin:0;}
+    .app-footer {border-top:1px solid #dce2d7;margin-top:32px;padding-top:16px;color:#919b87;
+        font-size:10px;line-height:1.9;display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;}
+    [data-testid="stExpander"] {background:transparent;border-color:#dfe5d8;border-radius:8px;}
+    [data-testid="stExpander"] summary p {font-size:11px;color:#84917a;}
+    @media(max-width:700px) {
+        [data-testid="stMainBlockContainer"] {padding:1.8rem 1.2rem;}
+        .app-bar {margin-bottom:16px;gap:12px;padding-bottom:16px;}
+        h1 {font-size:2.5rem!important;max-width:460px;}
+        .intro-description {max-width:100%;margin-bottom:8px;font-size:13px;}
+        .source-card {display:none;}
+        .intro-eyebrow {margin-top:4px;margin-bottom:12px;}
+        .st-key-lookup_card,.st-key-prediction_card {padding:20px!important;}
+        .app-status {font-size:10px;gap:10px;}
         .verdict {font-size:19px;}
-        .st-key-prediction_card [data-testid="stMetric"] {padding:12px;}
-        .st-key-prediction_card [data-testid="stMetricValue"] {font-size:28px;}
+        .st-key-prediction_card [data-testid="stMetricValue"] {font-size:27px;}
     }
 </style>"""
 
@@ -112,7 +126,7 @@ def show_prediction(result, customer):
         "O perfil deste cliente tem indicação de permanência no serviço."
     )
     with st.container(border=True, key="prediction_card"):
-        st.markdown(f'''<div class="result-heading"><div><p class="result-eyebrow">RESULTADO DA CONSULTA</p>
+        st.markdown(f'''<div class="result-heading"><div><p class="result-eyebrow">02 / RESULTADO DA ANÁLISE</p>
             <p class="result-id">Cliente {customer_id}</p></div>
             <span class="class-badge {'leave' if prediction else 'stay'}">{badge}</span></div>
             <p class="verdict">{CLASSIFICATION[prediction]}</p>
@@ -138,20 +152,21 @@ def show_prediction(result, customer):
 
 def lookup(frame):
     with st.container(border=True, key="lookup_card"):
-        st.markdown('<p class="card-eyebrow">ENCONTRE SEU CLIENTE</p>', unsafe_allow_html=True)
+        st.markdown('''<p class="card-eyebrow">01 / CONSULTA INDIVIDUAL</p>
+            <p class="lookup-heading">Localizar cliente</p>
+            <p class="lookup-description">Busque pelo código registrado na sua carteira.</p>''', unsafe_allow_html=True)
         with st.form("customer_lookup", border=False):
-            field, submit = st.columns([3.2, 1.2], gap="medium", vertical_alignment="bottom")
-            with field:
-                customer_id = st.text_input("Código do cliente", placeholder=f"Ex.: {frame.customerID.iloc[0]}",
-                                            key="customer_id", max_chars=100)
-            with submit:
-                submitted = st.form_submit_button("Consultar", type="primary", width="stretch")
-        st.markdown('<p class="examples-label">Experimente um cliente da sua base</p>', unsafe_allow_html=True)
+            customer_id = st.text_input("Código do cliente", placeholder=f"Ex.: {frame.customerID.iloc[0]}",
+                                        key="customer_id", max_chars=100)
+            submitted = st.form_submit_button("Consultar", type="primary", width="stretch")
+        st.markdown('<p class="examples-label">CLIENTES DA SUA BASE</p>', unsafe_allow_html=True)
         examples = frame.customerID.astype(str).str.strip().drop_duplicates().head(4).tolist()
         with st.container(key="examples"):
-            buttons = st.columns([1, 1, 1, 1, 1.3], gap="small")
-            for index, example in enumerate(examples):
-                buttons[index].button(example, key=f"example_{index}", on_click=select_example, args=(example,), width="stretch")
+            for offset in range(0, len(examples), 2):
+                buttons = st.columns(2, gap="small")
+                for index, example in enumerate(examples[offset:offset + 2], start=offset):
+                    buttons[index - offset].button(example, key=f"example_{index}", on_click=select_example,
+                                                    args=(example,), width="stretch")
         pending = st.session_state.pop("pending_customer", None)
         if submitted or pending is not None:
             st.session_state.pop("customer_prediction", None)
@@ -165,6 +180,11 @@ def lookup(frame):
     if "customer_prediction" in st.session_state:
         result, customer = st.session_state["customer_prediction"]
         show_prediction(result, customer)
+    else:
+        st.markdown('''<div class="empty-result"><span class="empty-icon" aria-hidden="true">⌁</span>
+            <p class="empty-title">Sua próxima análise começa aqui</p>
+            <p class="empty-description">Consulte um cliente para visualizar a probabilidade<br>
+            e a classificação do modelo.</p></div>''', unsafe_allow_html=True)
 
 
 def portfolio(frame):
@@ -190,14 +210,8 @@ def portfolio(frame):
 
 
 def main():
-    st.set_page_config(page_title="Churn Radar | Consulta de clientes", page_icon="📈", layout="wide")
-    st.markdown(RADAR_STYLE, unsafe_allow_html=True)
-    st.markdown('''<div class="radar-brand"><span class="radar-mark" aria-hidden="true">
-        <svg width="21" height="21" viewBox="0 0 24 24" fill="none"><path d="M5 16L10 10L14 13L20 5M16 5H20V9"
-        stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </span> CHURN RADAR</div>''', unsafe_allow_html=True)
-    st.title("Qual a chance deste cliente cancelar?")
-    st.markdown('<p class="radar-subtitle">Informe o código do cliente (<code>customerID</code>) e descubra a probabilidade de cancelamento com o modelo já treinado.</p>', unsafe_allow_html=True)
+    st.set_page_config(page_title="Permanência | Análise de clientes", page_icon="🌿", layout="wide")
+    st.markdown(APP_STYLE, unsafe_allow_html=True)
     try:
         frame = load_customer_base()
         if "customerID" not in frame or frame.customerID.astype("string").str.strip().eq("").any() or frame.customerID.isna().any():
@@ -206,12 +220,27 @@ def main():
         st.error(str(exc))
         return
     connected = check_health()
-    status = "Modelo conectado" if connected else "Modelo iniciando ou indisponível"
-    st.markdown(f'''<div class="radar-meta"><span><strong>churn.csv</strong> · {len(frame):,} clientes</span>
-        <span><i class="status-dot{'' if connected else ' waiting'}"></i>{status}</span></div>''', unsafe_allow_html=True)
-    lookup(frame)
-    st.markdown('''<p class="radar-footer">Dados da sua base <strong>churn.csv</strong>, analisados pelo modelo treinado neste projeto.<br>
-        A previsão estima permanência ou cancelamento do serviço; não representa garantia de pagamento.</p>''', unsafe_allow_html=True)
+    status = "Modelo disponível" if connected else "Modelo iniciando ou indisponível"
+    count = f"{len(frame):,}".replace(",", ".")
+    st.markdown(f'''<div class="app-bar"><div class="wordmark">
+        <span class="brand-symbol" aria-hidden="true">p</span><div><div class="brand-name">permanência</div>
+        <div class="brand-subtitle">Análise de clientes</div></div></div>
+        <div class="app-status"><span>Base: churn.csv</span>
+        <span><i class="status-dot{'' if connected else ' waiting'}"></i>{status}</span></div></div>''', unsafe_allow_html=True)
+    introduction, workspace = st.columns([0.86, 1.14], gap="large")
+    with introduction:
+        st.markdown('<p class="intro-eyebrow">RELACIONAMENTOS QUE CONTINUAM</p>', unsafe_allow_html=True)
+        st.title("Entenda a permanência dos seus clientes.")
+        st.markdown('''<p class="intro-description">Uma consulta simples para conhecer a tendência de cada cliente.
+            Encontre o perfil, veja a previsão e tenha mais contexto para sua próxima decisão.</p>''', unsafe_allow_html=True)
+        st.markdown(f'''<div class="source-card"><div class="source-label">Sua carteira, em perspectiva</div>
+            <div class="source-count">{count}</div><p class="source-description">clientes disponíveis para análise<br>
+            na base que você já utiliza.</p><div class="source-foot"><span>Fonte <strong>churn.csv</strong></span>
+            <span>Modelo <strong>já treinado</strong></span></div></div>''', unsafe_allow_html=True)
+    with workspace:
+        lookup(frame)
+    st.markdown('''<div class="app-footer"><span>Previsões com o modelo treinado neste projeto.</span>
+        <span>Churn estima cancelamento do serviço; não garante pagamentos futuros.</span></div>''', unsafe_allow_html=True)
     portfolio(frame)
 
 

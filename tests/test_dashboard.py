@@ -173,7 +173,7 @@ def test_existing_base_model_and_streamlit_match_fastapi(monkeypatch, tmp_path):
 
         app = AppTest.from_file(str(root / "frontend/streamlit_app.py")).run(timeout=30)
         assert not app.exception
-        assert app.title[0].value == "Qual a chance deste cliente cancelar?"
+        assert app.title[0].value == "Entenda a permanência dos seus clientes."
         assert len(app.json) == 0
         assert app.text_input(key="customer_id").value == ""
         assert [app.button(key=f"example_{index}").label for index in range(4)] == frame.customerID.head(4).tolist()

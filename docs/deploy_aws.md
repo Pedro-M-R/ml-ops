@@ -2,8 +2,10 @@
 
 Para hospedar sem AWS, use o [passo a passo de Render + Streamlit Cloud](deploy_render_streamlit.md).
 
-O **Churn Radar** usa os clientes já existentes em `data/churn.csv`. O layout
-tem fundo lavanda, um cartão branco de consulta e o botão roxo **Consultar**.
+O painel **Permanência** usa os clientes já existentes em `data/churn.csv`.
+O layout tem fundo claro, tons de verde e duas colunas: apresentação e resumo
+da base à esquerda; consulta e resultado à direita. O botão **Consultar** usa
+automaticamente o perfil já cadastrado.
 Digite o código do cliente (`customerID`) ou clique em um dos códigos reais
 mostrados como exemplo. A tela busca o perfil na base e chama `POST /predict`
 da FastAPI com o modelo já treinado; não é necessário preencher características

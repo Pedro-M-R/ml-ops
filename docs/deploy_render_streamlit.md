@@ -169,8 +169,8 @@ Não envie `.streamlit/secrets.toml` ao GitHub; o exemplo pode ser versionado.
 ## 5. Testar os dois serviços juntos
 
 1. Abra `/health` da API e aguarde `status: ok`.
-2. Abra o link `streamlit.app` e confira o título **Qual a chance deste cliente cancelar?**.
-3. Confira **Modelo conectado** e a contagem de clientes da base `churn.csv`.
+2. Abra o link `streamlit.app` e confira o painel **Permanência**, com apresentação à esquerda e consulta à direita.
+3. Confira **Modelo disponível** e a contagem de clientes da base `churn.csv`.
 4. Digite um `customerID` existente e clique em **Consultar**, ou clique em um dos códigos de exemplo. O perfil é buscado automaticamente na base.
 5. Confira **SIM — tende a continuar pagando** (classe 0) ou **NÃO — tende a cancelar o serviço** (classe 1), com a probabilidade e o JSON retornados pela API.
 6. Em **Ver resposta original da API**, confira o JSON. Em **Consultar a base completa**, use **Classificar toda a base** para analisar os clientes e baixar o CSV.
