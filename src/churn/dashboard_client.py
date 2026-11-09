@@ -26,7 +26,12 @@ class DashboardError(Exception):
 
 def load_customer_base():
     """Lê a base existente sem depender das bibliotecas de treino na tela."""
-    path = Path(os.environ.get("CHURN_DATA_PATH") or Path(__file__).resolve().parents[2] / "data/churn.csv")
+    root = Path(__file__).resolve().parents[2]
+    configured = os.environ.get("CHURN_DATA_PATH")
+    path = Path(configured) if configured else root / "data/churn.csv"
+    if not configured and not path.is_file():
+        # A base original continua versionada pelo DVC; a cópia acompanha o site.
+        path = root / "frontend/data/churn.csv"
     if not path.is_file():
         raise DashboardError("Base não encontrada. Envie seu arquivo na aba Análise por CSV.")
     try:

@@ -16,6 +16,7 @@ from churn.dashboard_client import (
 
 YES_NO = {"Yes": "Sim", "No": "Não"}
 CLASSIFICATION = {0: "Tende a continuar pagando (permanecer cliente)", 1: "Tende a cancelar (deixar de ser cliente)"}
+PAYMENT_CLASSIFICATION = {0: "SIM — tende a continuar pagando", 1: "NÃO — tende a cancelar o serviço"}
 
 
 def choice(label, options, key, default=None):
@@ -26,6 +27,12 @@ def choice(label, options, key, default=None):
 
 def show_results(result, threshold, source):
     st.subheader("Resultado da análise")
+    if len(result) == 1:
+        row = result.iloc[0]
+        if row.get("customerID") is not None:
+            st.write(f"Cliente: **{row.customerID}**")
+        st.markdown("### " + PAYMENT_CLASSIFICATION[int(row.churn_prediction)])
+        st.caption("Classificação estimada pelo modelo treinado para este cliente.")
     st.write("**0 — Tende a continuar pagando / permanecer cliente. 1 — Tende a cancelar / sair.**")
     st.caption(f"Limiar aplicado: {threshold:.0%}. A classe indica churn quando a probabilidade é maior ou igual ao limiar.")
     total, at_risk, average = st.columns(3)
@@ -43,6 +50,7 @@ def show_results(result, threshold, source):
         stay.metric("Probabilidade de permanecer", f"{1 - row.churn_probability:.1%}")
         leave.metric("Probabilidade de cancelar", f"{row.churn_probability:.1%}")
     display = result.copy()
+    display.insert(1 if "customerID" in display else 0, "Vai continuar pagando?", display.churn_prediction.map(PAYMENT_CLASSIFICATION))
     display["Classificação"] = display.churn_prediction.map(CLASSIFICATION)
     display["Probabilidade de permanecer"] = 1 - display.churn_probability
     st.dataframe(display, hide_index=True, width="stretch", column_config={
@@ -52,10 +60,9 @@ def show_results(result, threshold, source):
     })
     st.download_button("Baixar previsões em CSV", result.to_csv(index=False).encode("utf-8-sig"),
                        file_name="previsoes_churn.csv", mime="text/csv", key=f"{source}_csv")
-    response = result.attrs.get("api_response", {
-        "predictions": json.loads(result.to_json(orient="records", double_precision=15)),
-        "threshold": threshold,
-    })
+    response = result.attrs.get("api_response")
+    if response is None:
+        response = {"predictions": json.loads(result.to_json(orient="records", double_precision=15)), "threshold": threshold}
     st.markdown("#### Saída do FastAPI (/predict)")
     st.caption("Probabilidade e classe recebidas da API, sem recalcular a classificação na tela. Para mais de 1.000 clientes, as previsões dos lotes são reunidas abaixo.")
     st.json(response, expanded=len(result) == 1)
@@ -75,8 +82,9 @@ def customer_base(threshold):
         str(frame.iloc[index]["customerID"]) if "customerID" in frame else f"Linha {index + 1}"
     ))
     selected = frame.iloc[[position]]
-    st.dataframe(selected, hide_index=True, width="stretch")
-    st.caption("Churn é o resultado histórico da base e não é enviado ao modelo. A classificação abaixo vem da FastAPI.")
+    with st.expander("Ver dados cadastrados deste cliente"):
+        st.dataframe(selected, hide_index=True, width="stretch")
+        st.caption("Churn é o resultado histórico da base e não é enviado ao modelo. A classificação abaixo vem da FastAPI.")
     single, all_customers = st.columns(2)
     analyze_one = single.button("Classificar cliente da base", type="primary")
     analyze_all = all_customers.button("Classificar toda a base")
@@ -216,7 +224,7 @@ def main():
             st.link_button("Documentação da API", docs_url.rstrip("/") + "/docs")
         st.caption("Streamlit · FastAPI · MLflow")
     st.title("O cliente tende a continuar pagando?")
-    st.write("Consulte seu modelo treinado com os clientes da sua base e veja a probabilidade e a classificação retornadas pela FastAPI.")
+    st.write("Escolha um cliente já cadastrado na sua base e clique em Classificar cliente da base. Seu modelo treinado retorna a classificação e a probabilidade.")
     st.info("O alvo da base é Churn: permanência ou cancelamento do serviço. Continuar pagando significa permanecer cliente nesta análise; o modelo não prevê inadimplência nem garante pagamentos futuros.")
     base_tab, single_tab, csv_tab = st.tabs(["Clientes da base", "Análise individual", "Análise por CSV"])
     with base_tab:

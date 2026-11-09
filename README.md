@@ -10,6 +10,9 @@ das previsões. A aba **Clientes da base** usa `data/churn.csv` para classificar
 um cliente ou a base inteira com o modelo existente. A tela mostra a classe
 `0` (tende a permanecer) ou `1` (tende a cancelar), a probabilidade e a mesma
 resposta JSON de `POST /predict`. O alvo é cancelamento, não inadimplência.
+O site usa `frontend/data/churn.csv` quando o CSV original do DVC não está
+disponível. Essa cópia contém a base existente; para atualizá-la, execute
+`python -m uv run python scripts/preparar_base_painel.py` antes de publicar.
 O deploy AWS inclui template CloudFormation e script de publicação.
 
 **Documentação atual:** [como executar em outro PC](docs/guia_execucao.md). Resultados reais:

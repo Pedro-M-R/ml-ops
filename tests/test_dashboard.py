@@ -123,13 +123,19 @@ def test_customer_base_loads_configured_csv_and_keeps_history(monkeypatch, tmp_p
         client.load_customer_base()
 
 
-def test_existing_base_model_and_streamlit_match_fastapi(monkeypatch):
+def test_existing_base_model_and_streamlit_match_fastapi(monkeypatch, tmp_path):
     """Usa o artefato já treinado e a base do projeto, sem modelo simulado."""
     import numpy as np
     from fastapi.testclient import TestClient
     from churn.api import create_app
 
     monkeypatch.delenv("CHURN_DATA_PATH", raising=False)
+    # Simula o site publicado: só existe a cópia do frontend, sem CSV do DVC.
+    root = Path(__file__).resolve().parents[1]
+    published_base = tmp_path / "frontend/data/churn.csv"
+    published_base.parent.mkdir(parents=True)
+    published_base.write_bytes((root / "frontend/data/churn.csv").read_bytes())
+    monkeypatch.setattr(client, "__file__", str(tmp_path / "src/churn/dashboard_client.py"))
     frame = client.load_customer_base()
     customers = client.customers_from_frame(frame)
     monkeypatch.setattr(client, "check_health", lambda: True)
@@ -158,6 +164,9 @@ def test_existing_base_model_and_streamlit_match_fastapi(monkeypatch):
             expected = api.post("/predict", json={"customers": [customers[position]], "threshold": 0.5}).json()
             assert json.loads(app.json[0].value) == expected
             assert expected["predictions"][0]["churn_prediction"] == expected_class
+            label = "SIM — tende a continuar pagando" if expected_class == 0 else "NÃO — tende a cancelar o serviço"
+            assert any(label in element.value for element in app.markdown)
+            assert label in app.dataframe[1].value["Vai continuar pagando?"].tolist()
             messages = app.success if expected_class == 0 else app.warning
             assert any(f"Classificação {expected_class}" in message.value for message in messages)
         # As abas podem ter resultados ao mesmo tempo, sem colisão de widgets.
@@ -167,6 +176,9 @@ def test_existing_base_model_and_streamlit_match_fastapi(monkeypatch):
         next(button for button in app.button if button.label == "Classificar toda a base").click().run(timeout=30)
         assert not app.exception
         assert json.loads(app.json[0].value) == result.attrs["api_response"]
+        assert set(app.dataframe[1].value["Vai continuar pagando?"]) == {
+            "SIM — tende a continuar pagando", "NÃO — tende a cancelar o serviço",
+        }
 
 
 def test_form_consumes_fastapi_contract_and_retains_applied_threshold(monkeypatch):

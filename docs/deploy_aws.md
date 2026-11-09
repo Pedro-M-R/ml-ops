@@ -15,7 +15,10 @@ Na aba **Clientes da base**, selecione um identificador e clique em
 A coluna histórica `Churn` é exibida para consulta e removida antes da previsão.
 O limiar padrão é `0.5`, igual ao da API. O painel usa a classe recebida da API.
 Para usar outro arquivo local, configure `CHURN_DATA_PATH` no processo Streamlit.
-Se a base não estiver disponível na hospedagem, envie-a na aba **Análise por CSV**.
+O site inclui a cópia `frontend/data/churn.csv`, com os mesmos clientes da base
+original. Ela é usada automaticamente quando o CSV do DVC não existe, inclusive
+na imagem Docker. Ao atualizar a base original, execute
+`python -m uv run python scripts/preparar_base_painel.py` antes de publicar.
 
 ## Executar no computador
 
@@ -206,7 +209,9 @@ python -m uv run python scripts/deploy_aws.py --prepare-only
 ```
 
 O resultado fica em `dist/churn-portatil.zip` e inclui os arquivos `aws/` e
-`.streamlit/`. O CSV de treino não é incluído nesse comando.
+`.streamlit/`. A cópia da base usada pelo painel, em `frontend/data/churn.csv`,
+também é incluída. O arquivo original do DVC em `data/` exige `--include-data`
+no script `scripts/empacotar.py`.
 
 ## Rede, HTTPS e uso
 
