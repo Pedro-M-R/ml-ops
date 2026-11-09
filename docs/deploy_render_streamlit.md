@@ -13,6 +13,7 @@ Os arquivos de publicação já estão preparados:
 | `Dockerfile` | Instala o projeto com `uv.lock` e copia o modelo treinado. |
 | `frontend/streamlit_app.py` | Entrada da tela no Streamlit Cloud. |
 | `frontend/requirements.txt` | Instala só Streamlit, pandas e httpx para a tela. |
+| `frontend/data/churn.csv` | Cópia da sua base existente para escolher clientes no site, sem reenviar CSV. |
 | `.streamlit/secrets.example.toml` | Exemplo de configuração da URL da API. |
 
 ## 1. Enviar o projeto atualizado ao GitHub
@@ -30,16 +31,31 @@ O remote deve apontar para `Pedro-M-R/ml-ops` e a branch deve ser `main`.
 Revise os arquivos mostrados por `git status`. O modelo selecionado agora aparece
 em `deployment/model-v1-20d3e3df/`; é necessário enviá-lo para o Render poder
 construir a imagem. Outros modelos, `.venv`, logs, bancos MLflow e os arquivos
-de credenciais locais continuam ignorados.
+de credenciais locais continuam ignorados. A base original em `data/churn.csv`
+é gerenciada pelo DVC e não acompanha o Git. A cópia em
+`frontend/data/churn.csv` acompanha a publicação do painel e a imagem Docker.
+Ela contém os mesmos 7.043 clientes da base existente, sem gerar novos dados.
+Se atualizar a base original, atualize a cópia antes de publicar:
+
+```powershell
+python -m uv run python scripts/preparar_base_painel.py
+```
 
 Envie as alterações do projeto:
 
 ```powershell
-git add .
+git add .streamlit/config.toml Dockerfile frontend/streamlit_app.py frontend/requirements.txt frontend/data/churn.csv scripts/preparar_base_painel.py src/churn/dashboard.py src/churn/dashboard_client.py tests/test_dashboard.py tests/test_hosting.py README.md docs/deploy_aws.md docs/deploy_render_streamlit.md .gitattributes
 git diff --cached --stat
 git commit -m "Prepara FastAPI no Render e painel no Streamlit Cloud"
 git push origin main
 ```
+
+O `git add` precisa incluir `frontend/data/churn.csv`. Enviar apenas os arquivos
+Python atualiza a interface, mas deixa os dados fora do site. Para confirmar que
+a base entrou no commit, rode `git ls-files frontend/data/churn.csv`: deve aparecer
+o caminho do CSV. O arquivo `data/churn.csv.dvc` é apenas um ponteiro, não contém
+os registros. O remote DVC deste projeto é local e não está acessível ao Streamlit
+Cloud; por isso o painel utiliza a cópia do CSV incluída na publicação.
 
 Complete a autenticação do GitHub se solicitada. Se já tiver feito commit e
 não houver mudanças, basta o `git push`. Se ele retornar conflito ou rejeição,
@@ -50,6 +66,7 @@ Abra o repositório no GitHub e confira, na branch `main`, estes arquivos:
 - `render.yaml`
 - `frontend/streamlit_app.py`
 - `frontend/requirements.txt`
+- `frontend/data/churn.csv`
 - `src/churn/dashboard.py`
 - `reports/selection.json`
 - `deployment/model-v1-20d3e3df/MLmodel`
@@ -139,7 +156,7 @@ Invoke-RestMethod -Uri "$apiPublica/invocations" -Method Post -ContentType 'appl
 
 Use apenas a URL base nos Secrets, sem `/docs`, `/health` ou `/predict`.
 `CHURN_API_URL` é o endereço que a tela consulta; `CHURN_API_PUBLIC_URL` habilita
-o link da documentação da API na barra lateral.
+o link da documentação em **Ver resposta original da API**.
 
 O Streamlit usa `frontend/requirements.txt` porque está junto do arquivo de
 entrada. Assim, a tela não instala as dependências de treino e MLflow da API.
@@ -152,11 +169,11 @@ Não envie `.streamlit/secrets.toml` ao GitHub; o exemplo pode ser versionado.
 ## 5. Testar os dois serviços juntos
 
 1. Abra `/health` da API e aguarde `status: ok`.
-2. Abra o link `streamlit.app` e clique em **Verificar conexão**.
-3. Confira **API conectada** na barra lateral.
-4. Clique em **Analisar cliente** e verifique a probabilidade retornada.
-5. Baixe o modelo de CSV da própria tela, envie-o na aba de CSV e faça a análise.
-6. Baixe as previsões para confirmar o fluxo completo.
+2. Abra o link `streamlit.app` e confira o título **Qual a chance deste cliente cancelar?**.
+3. Confira **Modelo conectado** e a contagem de clientes da base `churn.csv`.
+4. Digite um `customerID` existente e clique em **Consultar**, ou clique em um dos códigos de exemplo. O perfil é buscado automaticamente na base.
+5. Confira **SIM — tende a continuar pagando** (classe 0) ou **NÃO — tende a cancelar o serviço** (classe 1), com a probabilidade e o JSON retornados pela API.
+6. Em **Ver resposta original da API**, confira o JSON. Em **Consultar a base completa**, use **Classificar toda a base** para analisar os clientes e baixar o CSV.
 
 Se funcionar após desligar os servidores locais, as chamadas estão passando
 pelos serviços publicados. Na nuvem, não use `localhost`, `127.0.0.1` ou

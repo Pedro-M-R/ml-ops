@@ -11,6 +11,7 @@ RUN uv sync --locked --no-dev
 
 COPY deployment/ ./deployment/
 COPY reports/selection.json ./reports/selection.json
+COPY frontend/data/ ./frontend/data/
 COPY .streamlit/ ./.streamlit/
 
 ENV PATH="/app/.venv/bin:$PATH"

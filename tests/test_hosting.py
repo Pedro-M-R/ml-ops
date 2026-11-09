@@ -1,5 +1,6 @@
 """Entradas de hospedagem: porta da plataforma e Secrets do Streamlit Cloud."""
 
+import json
 import os
 from pathlib import Path
 
@@ -49,8 +50,8 @@ def test_cloud_entry_uses_secrets_without_replacing_explicit_environment(monkeyp
     monkeypatch.setattr("churn.dashboard.check_health", lambda: True)
     app = AppTest.from_file(str(ROOT / "frontend/streamlit_app.py")).run(timeout=30)
     assert not app.exception
-    next(button for button in app.button if button.label == "Analisar cliente").click().run()
+    app.button(key="example_0").click().run()
     assert not app.exception
     assert called_urls == [explicit_url or "https://churn-api.example"]
     assert os.environ["CHURN_API_PUBLIC_URL"] == "https://churn-api.example"
-    assert app.metric[2].value == "70.0%"
+    assert json.loads(app.json[0].value)["predictions"][0] == {"churn_probability": 0.7, "churn_prediction": 1}

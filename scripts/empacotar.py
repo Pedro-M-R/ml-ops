@@ -12,6 +12,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--include-data", action="store_true", help="Inclui CSV e ponteiro para retreino.")
     args = parser.parse_args()
+    if not (ROOT / "frontend/data/churn.csv").is_file():
+        raise FileNotFoundError(
+            "A base do painel está ausente. Execute python scripts/preparar_base_painel.py antes de empacotar."
+        )
     selection = json.loads((ROOT / "reports/selection.json").read_text(encoding="utf-8"))
     files = []
     for name in ("pyproject.toml", "uv.lock", ".python-version", "README.md", "Dockerfile", "docker-compose.yml", ".dockerignore", ".gitattributes", "render.yaml"):
