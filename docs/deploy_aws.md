@@ -2,9 +2,20 @@
 
 Para hospedar sem AWS, use o [passo a passo de Render + Streamlit Cloud](deploy_render_streamlit.md).
 
-O painel permite analisar um cliente, enviar um CSV e baixar probabilidades e
-classes em CSV. Ele consome `POST /predict` da API existente. O modelo continua
+O painel permite selecionar clientes de `data/churn.csv`, classificar toda a
+base, preencher um perfil ou enviar um CSV. Ele consome `POST /predict` da API
+existente e mostra a probabilidade, a classe e o JSON retornados, com download
+em CSV e JSON. O modelo continua
 na FastAPI; não é necessário treinar de novo nem copiar o banco do MLflow.
+
+Na aba **Clientes da base**, selecione um identificador e clique em
+**Classificar cliente da base**, ou use **Classificar toda a base**. A classe
+`0` significa tendência de permanecer cliente (continuar pagando pelo serviço);
+`1` significa tendência de cancelar. O alvo `Churn` não mede inadimplência.
+A coluna histórica `Churn` é exibida para consulta e removida antes da previsão.
+O limiar padrão é `0.5`, igual ao da API. O painel usa a classe recebida da API.
+Para usar outro arquivo local, configure `CHURN_DATA_PATH` no processo Streamlit.
+Se a base não estiver disponível na hospedagem, envie-a na aba **Análise por CSV**.
 
 ## Executar no computador
 

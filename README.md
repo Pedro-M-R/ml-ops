@@ -6,7 +6,11 @@ Projeto de predição de churn com seleção por validação cruzada, MLflow Mod
 **Alternativa à AWS:** [FastAPI no Render e tela no Streamlit Cloud](docs/deploy_render_streamlit.md).
 Com a API iniciada, `python -m uv run churn-dashboard` abre o painel em
 http://127.0.0.1:8501. Ele permite consulta individual, envio de CSV e download
-das previsões. O deploy AWS inclui template CloudFormation e script de publicação.
+das previsões. A aba **Clientes da base** usa `data/churn.csv` para classificar
+um cliente ou a base inteira com o modelo existente. A tela mostra a classe
+`0` (tende a permanecer) ou `1` (tende a cancelar), a probabilidade e a mesma
+resposta JSON de `POST /predict`. O alvo é cancelamento, não inadimplência.
+O deploy AWS inclui template CloudFormation e script de publicação.
 
 **Documentação atual:** [como executar em outro PC](docs/guia_execucao.md). Resultados reais:
 `reports/selection.json` e `reports/comparison.csv`. Pacote transportável:

@@ -2,6 +2,7 @@
 
 import math
 import os
+from pathlib import Path
 
 import httpx
 import pandas as pd
@@ -21,6 +22,19 @@ EXAMPLE_CUSTOMER = {
 
 class DashboardError(Exception):
     """Erro apropriado para exibição na interface, sem dados dos clientes."""
+
+
+def load_customer_base():
+    """Lê a base existente sem depender das bibliotecas de treino na tela."""
+    path = Path(os.environ.get("CHURN_DATA_PATH") or Path(__file__).resolve().parents[2] / "data/churn.csv")
+    if not path.is_file():
+        raise DashboardError("Base não encontrada. Envie seu arquivo na aba Análise por CSV.")
+    try:
+        frame = pd.read_csv(path, dtype=str, keep_default_na=False, encoding="utf-8-sig", nrows=MAX_CSV_ROWS + 1)
+        customers_from_frame(frame)
+    except (OSError, ValueError, UnicodeError) as exc:
+        raise DashboardError("Não foi possível ler a base de clientes. Confira o arquivo CSV configurado.") from exc
+    return frame
 
 
 def api_url():
@@ -104,4 +118,8 @@ def predict_customers(customers: list[dict], threshold: float):
         raise DashboardError("Não foi possível consultar a API. Confira se o serviço está em execução.") from exc
     except (ValueError, KeyError, TypeError) as exc:
         raise DashboardError("A API retornou uma resposta inesperada.") from exc
-    return pd.DataFrame(predictions)
+    result = pd.DataFrame(predictions)
+    # Preserva os registros recebidos, inclusive a ausência de IDs opcionais.
+    # Em CSVs grandes, une somente a lista dos lotes no mesmo contrato /predict.
+    result.attrs["api_response"] = {"predictions": predictions, "threshold": body["threshold"]}
+    return result
