@@ -123,14 +123,28 @@ def test_customer_base_loads_configured_csv_and_keeps_history(monkeypatch, tmp_p
         client.load_customer_base()
 
 
+def test_customer_lookup_uses_existing_record_without_target(csv_frame):
+    csv_frame["Churn"] = "Yes"
+    customer = client.customer_from_id(csv_frame, " 001 ")
+    assert customer["customerID"] == "001"
+    assert "Churn" not in customer
+    csv_frame["customerID"] = "7000-QFVW"
+    assert client.customer_from_id(csv_frame, " 7000-qfvw ")["customerID"] == "7000-QFVW"
+    with pytest.raises(client.DashboardError, match="não encontrado"):
+        client.customer_from_id(csv_frame, "inexistente")
+    with pytest.raises(client.DashboardError, match="Informe o código"):
+        client.customer_from_id(csv_frame, " ")
+    with pytest.raises(client.DashboardError, match="mais de um registro"):
+        client.customer_from_id(pd.concat([csv_frame, csv_frame]), "7000-QFVW")
+
+
 def test_existing_base_model_and_streamlit_match_fastapi(monkeypatch, tmp_path):
-    """Usa o artefato já treinado e a base do projeto, sem modelo simulado."""
+    """Usa o artefato treinado e os clientes reais, inclusive no pacote publicado."""
     import numpy as np
     from fastapi.testclient import TestClient
     from churn.api import create_app
 
     monkeypatch.delenv("CHURN_DATA_PATH", raising=False)
-    # Simula o site publicado: só existe a cópia do frontend, sem CSV do DVC.
     root = Path(__file__).resolve().parents[1]
     published_base = tmp_path / "frontend/data/churn.csv"
     published_base.parent.mkdir(parents=True)
@@ -140,7 +154,10 @@ def test_existing_base_model_and_streamlit_match_fastapi(monkeypatch, tmp_path):
     customers = client.customers_from_frame(frame)
     monkeypatch.setattr(client, "check_health", lambda: True)
     with TestClient(create_app()) as api:
+        requests = []
+
         def handler(request):
+            requests.append(json.loads(request.content))
             response = api.post("/predict", content=request.content, headers={"Content-Type": "application/json"})
             return httpx.Response(response.status_code, json=response.json())
 
@@ -154,72 +171,79 @@ def test_existing_base_model_and_streamlit_match_fastapi(monkeypatch, tmp_path):
         np.testing.assert_array_equal(result.churn_prediction, (probabilities >= 0.5).astype(int))
         assert result.customerID.tolist() == frame.customerID.tolist()
 
-        app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / "frontend/streamlit_app.py"))
-        app.run(timeout=30)
+        app = AppTest.from_file(str(root / "frontend/streamlit_app.py")).run(timeout=30)
         assert not app.exception
+        assert app.title[0].value == "Qual a chance deste cliente cancelar?"
+        assert len(app.json) == 0
+        assert app.text_input(key="customer_id").value == ""
+        assert [app.button(key=f"example_{index}").label for index in range(4)] == frame.customerID.head(4).tolist()
         for position, expected_class in [(int(np.argmin(probabilities)), 0), (int(np.argmax(probabilities)), 1)]:
-            app.selectbox(key="base_customer").set_value(position).run()
-            next(button for button in app.button if button.label == "Classificar cliente da base").click().run(timeout=30)
+            customer_id = customers[position]["customerID"]
+            app.text_input(key="customer_id").set_value(" " + customer_id.lower() + " ")
+            next(button for button in app.button if button.label == "Consultar").click().run(timeout=30)
             assert not app.exception
             expected = api.post("/predict", json={"customers": [customers[position]], "threshold": 0.5}).json()
             assert json.loads(app.json[0].value) == expected
+            assert requests[-1]["customers"] == [customers[position]]
+            assert "Churn" not in requests[-1]["customers"][0]
             assert expected["predictions"][0]["churn_prediction"] == expected_class
+            assert app.metric[0].value == f"{probabilities[position]:.1%}"
+            assert app.metric[1].value == f"{1 - probabilities[position]:.1%}"
             label = "SIM — tende a continuar pagando" if expected_class == 0 else "NÃO — tende a cancelar o serviço"
             assert any(label in element.value for element in app.markdown)
-            assert label in app.dataframe[1].value["Vai continuar pagando?"].tolist()
-            messages = app.success if expected_class == 0 else app.warning
-            assert any(f"Classificação {expected_class}" in message.value for message in messages)
-        # As abas podem ter resultados ao mesmo tempo, sem colisão de widgets.
-        next(button for button in app.button if button.label == "Analisar cliente").click().run(timeout=30)
+
+        # O exemplo é um cliente real e consulta o modelo com um único clique.
+        app.button(key="example_0").click().run(timeout=30)
         assert not app.exception
-        assert len(app.json) == 2
-        next(button for button in app.button if button.label == "Classificar toda a base").click().run(timeout=30)
+        assert app.text_input(key="customer_id").value == customers[0]["customerID"]
+        assert requests[-1]["customers"] == [customers[0]]
+        assert json.loads(app.json[0].value) == api.post(
+            "/predict", json={"customers": [customers[0]], "threshold": 0.5},
+        ).json()
+
+        app.button(key="classify_base").click().run(timeout=30)
         assert not app.exception
-        assert json.loads(app.json[0].value) == result.attrs["api_response"]
-        assert set(app.dataframe[1].value["Vai continuar pagando?"]) == {
+        assert json.loads(app.json[-1].value) == result.attrs["api_response"]
+        assert set(app.dataframe[-1].value["Classificação"]) == {
             "SIM — tende a continuar pagando", "NÃO — tende a cancelar o serviço",
         }
 
 
-def test_form_consumes_fastapi_contract_and_retains_applied_threshold(monkeypatch):
-    from fastapi.testclient import TestClient
-    import numpy as np
-    from churn.api import create_app
-
-    class Model:
-        def predict(self, frame):
-            return np.array([[0.3, 0.7]] * len(frame))
-
-    monkeypatch.setattr("mlflow.pyfunc.load_model", lambda uri: Model())
+def test_lookup_rejects_empty_and_unknown_ids_without_calling_api(monkeypatch):
     monkeypatch.setattr(client, "check_health", lambda: True)
-    with TestClient(create_app(model_uri="test-model")) as api:
-        mock_api(monkeypatch, lambda request: httpx.Response(
-            200, json=api.post("/predict", content=request.content, headers={"Content-Type": "application/json"}).json()
-        ))
-        app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / "src/churn/dashboard.py"))
-        app.run(timeout=30)
-        assert not app.exception
-        next(button for button in app.button if button.label == "Analisar cliente").click().run(timeout=30)
-        assert not app.exception
-        assert app.metric[0].value == "1"
-        assert app.metric[1].value == "1"
-        assert app.metric[2].value == "70.0%"
-        app.slider[0].set_value(0.9).run()
-        assert any("Limiar aplicado: 50%" in caption.value for caption in app.caption)
-        next(button for button in app.button if button.label == "Analisar cliente").click().run(timeout=30)
-        assert not app.exception
-        assert app.metric[1].value == "0"
-
-
-def test_form_displays_api_error(monkeypatch):
-    monkeypatch.setattr(client, "check_health", lambda: False)
-
-    def fail(customers, threshold):
-        raise client.DashboardError("A API não está disponível.")
-
-    monkeypatch.setattr(client, "predict_customers", fail)
+    calls = []
+    monkeypatch.setattr(client, "predict_customers", lambda *args: calls.append(args))
     app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / "src/churn/dashboard.py")).run()
-    next(button for button in app.button if button.label == "Analisar cliente").click().run()
+    next(button for button in app.button if button.label == "Consultar").click().run()
+    assert "Informe o código" in app.error[0].value
+    app.text_input(key="customer_id").set_value("cliente-inexistente")
+    next(button for button in app.button if button.label == "Consultar").click().run()
+    assert "não encontrado no churn.csv" in app.error[0].value
+    assert not app.exception
+    assert not calls
+    assert len(app.metric) == 0
+    assert len(app.json) == 0
+
+
+def test_form_displays_api_error_and_clears_previous_result(monkeypatch):
+    monkeypatch.setattr(client, "check_health", lambda: True)
+    app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / "src/churn/dashboard.py"))
+    calls = []
+
+    def predict(customers, threshold):
+        calls.append(customers)
+        if len(calls) > 1:
+            raise client.DashboardError("A API não está disponível.")
+        return pd.DataFrame([{
+            "customerID": customers[0]["customerID"], "churn_probability": 0.7, "churn_prediction": 1,
+        }])
+
+    monkeypatch.setattr(client, "predict_customers", predict)
+    app.run()
+    app.button(key="example_0").click().run()
+    assert len(app.metric) == 2
+    app.button(key="example_1").click().run()
     assert not app.exception
     assert app.error[0].value == "A API não está disponível."
     assert len(app.metric) == 0
+    assert len(app.json) == 0

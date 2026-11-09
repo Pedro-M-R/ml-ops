@@ -5,11 +5,15 @@ Projeto de predição de churn com seleção por validação cruzada, MLflow Mod
 **Interface e AWS:** [executar o painel e criar a infraestrutura EC2](docs/deploy_aws.md).
 **Alternativa à AWS:** [FastAPI no Render e tela no Streamlit Cloud](docs/deploy_render_streamlit.md).
 Com a API iniciada, `python -m uv run churn-dashboard` abre o painel em
-http://127.0.0.1:8501. Ele permite consulta individual, envio de CSV e download
-das previsões. A aba **Clientes da base** usa `data/churn.csv` para classificar
-um cliente ou a base inteira com o modelo existente. A tela mostra a classe
+http://127.0.0.1:8501. O **Churn Radar** consulta os clientes existentes em
+`data/churn.csv`: informe o `customerID` e clique em **Consultar**, ou clique
+em um dos códigos de exemplo da própria base. O painel busca o perfil completo
+e o envia ao modelo treinado pela FastAPI. O resultado mostra a chance de
+cancelar, a chance de permanecer e a classe
 `0` (tende a permanecer) ou `1` (tende a cancelar), a probabilidade e a mesma
 resposta JSON de `POST /predict`. O alvo é cancelamento, não inadimplência.
+A seção **Consultar a base completa** permite classificar a carteira e baixar
+as previsões em CSV.
 O site usa `frontend/data/churn.csv` quando o CSV original do DVC não está
 disponível. Essa cópia contém a base existente; para atualizá-la, execute
 `python -m uv run python scripts/preparar_base_painel.py` antes de publicar.

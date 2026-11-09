@@ -2,18 +2,24 @@
 
 Para hospedar sem AWS, use o [passo a passo de Render + Streamlit Cloud](deploy_render_streamlit.md).
 
-O painel permite selecionar clientes de `data/churn.csv`, classificar toda a
-base, preencher um perfil ou enviar um CSV. Ele consome `POST /predict` da API
-existente e mostra a probabilidade, a classe e o JSON retornados, com download
-em CSV e JSON. O modelo continua
-na FastAPI; não é necessário treinar de novo nem copiar o banco do MLflow.
+O **Churn Radar** usa os clientes já existentes em `data/churn.csv`. O layout
+tem fundo lavanda, um cartão branco de consulta e o botão roxo **Consultar**.
+Digite o código do cliente (`customerID`) ou clique em um dos códigos reais
+mostrados como exemplo. A tela busca o perfil na base e chama `POST /predict`
+da FastAPI com o modelo já treinado; não é necessário preencher características
+nem treinar novamente. Um código desconhecido exibe uma mensagem e não chama
+o modelo com dados inventados.
 
-Na aba **Clientes da base**, selecione um identificador e clique em
-**Classificar cliente da base**, ou use **Classificar toda a base**. A classe
+O resultado mostra a chance de cancelar, a chance de permanecer e a classificação.
+Em **Ver resposta original da API**, o JSON mantém os valores recebidos da
+FastAPI, com download. **Ver dados utilizados na análise** mostra o registro
+enviado ao modelo. A classe
 `0` significa tendência de permanecer cliente (continuar pagando pelo serviço);
 `1` significa tendência de cancelar. O alvo `Churn` não mede inadimplência.
-A coluna histórica `Churn` é exibida para consulta e removida antes da previsão.
-O limiar padrão é `0.5`, igual ao da API. O painel usa a classe recebida da API.
+A coluna histórica `Churn` é removida antes da previsão. O limiar é `0.5`,
+igual ao padrão da API. O painel usa a classe recebida da API.
+Em **Consultar a base completa**, clique em **Classificar toda a base** para
+consultar todos os registros e baixar a tabela em CSV.
 Para usar outro arquivo local, configure `CHURN_DATA_PATH` no processo Streamlit.
 O site inclui a cópia `frontend/data/churn.csv`, com os mesmos clientes da base
 original. Ela é usada automaticamente quando o CSV do DVC não existe, inclusive

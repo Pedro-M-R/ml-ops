@@ -33,13 +33,28 @@ def load_customer_base():
         # A base original continua versionada pelo DVC; a cópia acompanha o site.
         path = root / "frontend/data/churn.csv"
     if not path.is_file():
-        raise DashboardError("Base não encontrada. Envie seu arquivo na aba Análise por CSV.")
+        raise DashboardError("Base não encontrada. O arquivo churn.csv precisa acompanhar esta instalação.")
     try:
         frame = pd.read_csv(path, dtype=str, keep_default_na=False, encoding="utf-8-sig", nrows=MAX_CSV_ROWS + 1)
         customers_from_frame(frame)
     except (OSError, ValueError, UnicodeError) as exc:
         raise DashboardError("Não foi possível ler a base de clientes. Confira o arquivo CSV configurado.") from exc
     return frame
+
+
+def customer_from_id(frame: pd.DataFrame, customer_id: str):
+    """Localiza o registro existente; nunca inventa dados para um ID desconhecido."""
+    code = customer_id.strip().casefold()
+    if not code:
+        raise DashboardError("Informe o código do cliente para consultar.")
+    if "customerID" not in frame:
+        raise DashboardError("A base churn.csv precisa da coluna customerID para localizar os clientes.")
+    matches = frame.loc[frame.customerID.astype("string").str.strip().str.casefold().eq(code).fillna(False)]
+    if matches.empty:
+        raise DashboardError("Cliente não encontrado no churn.csv. Confira o código ou experimente um dos exemplos abaixo.")
+    if len(matches) != 1:
+        raise DashboardError("Há mais de um registro para esse código no churn.csv. Confira os identificadores da base.")
+    return customers_from_frame(matches)[0]
 
 
 def api_url():

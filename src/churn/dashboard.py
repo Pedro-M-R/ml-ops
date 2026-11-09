@@ -1,239 +1,218 @@
-"""Interface Streamlit para consulta individual e previsão de CSVs."""
+"""Churn Radar: consulta por customerID com a base e o modelo existentes."""
 
 import json
 import os
 import subprocess
 import sys
+from html import escape
 from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 
 from churn.dashboard_client import (
-    DashboardError, EXAMPLE_CUSTOMER, MAX_CSV_ROWS, check_health,
-    customers_from_frame, load_customer_base, predict_customers,
+    DashboardError, check_health, customer_from_id, customers_from_frame,
+    load_customer_base, predict_customers,
 )
 
-YES_NO = {"Yes": "Sim", "No": "Não"}
-CLASSIFICATION = {0: "Tende a continuar pagando (permanecer cliente)", 1: "Tende a cancelar (deixar de ser cliente)"}
-PAYMENT_CLASSIFICATION = {0: "SIM — tende a continuar pagando", 1: "NÃO — tende a cancelar o serviço"}
+THRESHOLD = 0.5
+CLASSIFICATION = {
+    0: "SIM — tende a continuar pagando",
+    1: "NÃO — tende a cancelar o serviço",
+}
+
+RADAR_STYLE = """<style>
+    :root {--radar-ink:#111c36; --radar-muted:#69738c; --radar-purple:#5143e9;}
+    .stApp {
+        background: radial-gradient(ellipse at 15% 5%, #eaeaff 0%, transparent 48%),
+                    linear-gradient(135deg, #f3f3fd 0%, #f8f9fe 65%, #f0f2fb 100%);
+        color:var(--radar-ink);
+    }
+    [data-testid="stHeader"] {background:transparent;}
+    [data-testid="stMainBlockContainer"] {max-width:1040px; padding:3rem 2.2rem 2rem;}
+    h1 {text-align:center; font-size:clamp(2rem,4.2vw,2.8rem)!important;
+        line-height:1.17!important; font-weight:780!important; letter-spacing:-.045em!important;
+        color:var(--radar-ink)!important; padding:0!important; margin:0 auto 1rem!important; max-width:820px;}
+    .radar-brand {display:flex; justify-content:center; align-items:center; gap:12px;
+        margin:0 auto 2.2rem; color:var(--radar-purple); font-size:11px; font-weight:800; letter-spacing:.21em;}
+    .radar-mark {width:36px;height:36px;display:grid;place-items:center;background:var(--radar-purple);
+        color:white;border-radius:12px;box-shadow:0 6px 15px #5143e928;}
+    .radar-subtitle {text-align:center;max-width:610px;margin:.25rem auto 1.2rem;color:var(--radar-muted);
+        font-size:15px;line-height:1.8;}
+    .radar-subtitle code {background:#eeecff;color:#5143e9;padding:3px 6px;border-radius:6px;font-size:13px;}
+    .radar-meta {display:flex;justify-content:center;align-items:center;gap:14px;flex-wrap:wrap;
+        font-size:11px;color:#79829a;margin-bottom:1.8rem;}
+    .radar-meta strong {font-weight:650;color:#59647c;}
+    .status-dot {display:inline-block;width:6px;height:6px;border-radius:50%;background:#26a886;margin-right:6px;}
+    .status-dot.waiting {background:#c58b29;}
+    .st-key-lookup_card {background:#fff;border:1px solid #e0e4f4!important;border-radius:26px!important;
+        padding:30px 34px!important;box-shadow:0 22px 50px -30px #23305155;margin-bottom:.5rem;}
+    .card-eyebrow {color:#8b91a8;font-weight:750;font-size:10px;letter-spacing:.15em;margin:0 0 18px;}
+    .st-key-customer_id label p {font-size:12px;font-weight:600;color:#495776;}
+    .st-key-customer_id [data-baseweb="input"] {height:54px;border:1px solid #dfe3f4;border-radius:14px;
+        background:#fff;box-shadow:none;}
+    .st-key-customer_id input {font-size:14px;padding-left:16px;color:#17223c;}
+    .st-key-customer_id [data-baseweb="input"]:focus-within {border-color:#7062f0;box-shadow:0 0 0 3px #5143e911;}
+    .st-key-lookup_card [data-testid="stFormSubmitButton"] button {
+        height:54px;border:none;border-radius:14px;background:#5143e9;color:white;
+        font-size:13px;font-weight:650;box-shadow:0 8px 18px -8px #5143e9a0;transition:background .18s,transform .18s;}
+    .st-key-lookup_card [data-testid="stFormSubmitButton"] button:hover {background:#4034cd;transform:translateY(-1px);}
+    .st-key-lookup_card [data-testid="stFormSubmitButton"] button:focus-visible {outline:3px solid #b8b0ff;outline-offset:3px;}
+    .examples-label {font-size:11px;color:#77819b;margin:6px 0 3px;}
+    .st-key-examples [data-testid="stButton"] button {
+        background:#fff;color:#6253e9;border:1px solid #e1dffa;border-radius:999px;
+        min-height:32px;padding:3px 12px;font-weight:500;font-size:11px;box-shadow:none;}
+    .st-key-examples [data-testid="stButton"] button:hover {background:#f2efff;border-color:#b8adff;}
+    .st-key-prediction_card {background:white;border:1px solid #e0e4f4!important;border-radius:24px!important;
+        padding:28px 34px!important;box-shadow:0 18px 40px -30px #23305155;margin-top:10px;}
+    .result-heading {display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:16px;}
+    .result-eyebrow {font-size:10px;letter-spacing:.12em;font-weight:750;color:#8b91a8;margin:0 0 5px;}
+    .result-id {font-size:19px;font-weight:750;color:#192641;margin:0;}
+    .class-badge {font-size:11px;font-weight:650;border-radius:999px;padding:7px 12px;white-space:nowrap;}
+    .class-badge.stay {background:#edf9f4;color:#187d5e;}
+    .class-badge.leave {background:#fff3e7;color:#a45a14;}
+    .verdict {font-size:22px;font-weight:750;letter-spacing:-.02em;line-height:1.35;margin:0 0 6px;color:#17223c;}
+    .verdict-description {font-size:12px;line-height:1.7;color:#79829a;margin:0 0 20px;}
+    .st-key-prediction_card [data-testid="stMetric"] {background:#f6f5ff;border:1px solid #eeebff;border-radius:16px;padding:16px 20px;}
+    .st-key-prediction_card [data-testid="stMetricLabel"] p {color:#747496;font-size:12px;}
+    .st-key-prediction_card [data-testid="stMetricValue"] {color:#5143e9;font-weight:750;font-size:36px;}
+    .st-key-prediction_card [data-testid="stProgress"] > div > div {background:#ebe8ff;}
+    .st-key-prediction_card [data-testid="stProgress"] > div > div > div {background:#6959f0;}
+    .radar-footer {max-width:700px;margin:18px auto 0;text-align:center;color:#838ca3;font-size:11px;line-height:1.9;}
+    .radar-footer strong {color:#6a7390;font-weight:550;}
+    [data-testid="stExpander"] {border-color:#e5e7f2;border-radius:12px;background:transparent;}
+    [data-testid="stExpander"] summary p {font-size:12px;color:#78819a;}
+    @media(max-width:640px) {
+        [data-testid="stMainBlockContainer"] {padding:2rem 1rem 1.5rem;}
+        .radar-brand {margin-bottom:1.7rem;}
+        .st-key-lookup_card,.st-key-prediction_card {padding:22px 18px!important;border-radius:20px!important;}
+        .radar-subtitle {font-size:13px;}
+        .radar-meta {gap:10px;font-size:10px;}
+        .verdict {font-size:19px;}
+        .st-key-prediction_card [data-testid="stMetric"] {padding:12px;}
+        .st-key-prediction_card [data-testid="stMetricValue"] {font-size:28px;}
+    }
+</style>"""
 
 
-def choice(label, options, key, default=None):
-    values = list(options)
-    default = default if default is not None else EXAMPLE_CUSTOMER.get(key, values[0])
-    return st.selectbox(label, values, index=values.index(default), format_func=options.get, key=key)
+def select_example(customer_id):
+    st.session_state["customer_id"] = customer_id
+    st.session_state["pending_customer"] = customer_id
 
 
-def show_results(result, threshold, source):
-    st.subheader("Resultado da análise")
-    if len(result) == 1:
-        row = result.iloc[0]
-        if row.get("customerID") is not None:
-            st.write(f"Cliente: **{row.customerID}**")
-        st.markdown("### " + PAYMENT_CLASSIFICATION[int(row.churn_prediction)])
-        st.caption("Classificação estimada pelo modelo treinado para este cliente.")
-    st.write("**0 — Tende a continuar pagando / permanecer cliente. 1 — Tende a cancelar / sair.**")
-    st.caption(f"Limiar aplicado: {threshold:.0%}. A classe indica churn quando a probabilidade é maior ou igual ao limiar.")
-    total, at_risk, average = st.columns(3)
-    total.metric("Clientes analisados", len(result))
-    at_risk.metric("Com indicação de churn", int(result.churn_prediction.sum()))
-    average.metric("Probabilidade média", f"{result.churn_probability.mean():.1%}")
-    if len(result) == 1:
-        row = result.iloc[0]
-        st.progress(float(row.churn_probability), text=f"Probabilidade de churn: {row.churn_probability:.1%}")
-        if row.churn_prediction:
-            st.warning("Classificação 1 — " + CLASSIFICATION[1] + ".")
-        else:
-            st.success("Classificação 0 — " + CLASSIFICATION[0] + ".")
-        stay, leave = st.columns(2)
-        stay.metric("Probabilidade de permanecer", f"{1 - row.churn_probability:.1%}")
-        leave.metric("Probabilidade de cancelar", f"{row.churn_probability:.1%}")
-    display = result.copy()
-    display.insert(1 if "customerID" in display else 0, "Vai continuar pagando?", display.churn_prediction.map(PAYMENT_CLASSIFICATION))
-    display["Classificação"] = display.churn_prediction.map(CLASSIFICATION)
-    display["Probabilidade de permanecer"] = 1 - display.churn_probability
-    st.dataframe(display, hide_index=True, width="stretch", column_config={
-        "churn_probability": st.column_config.NumberColumn("Probabilidade de cancelar (churn_probability)", format="%.6f"),
-        "churn_prediction": st.column_config.NumberColumn("Classe da API (churn_prediction)", format="%d"),
-        "Probabilidade de permanecer": st.column_config.NumberColumn(format="%.6f"),
-    })
-    st.download_button("Baixar previsões em CSV", result.to_csv(index=False).encode("utf-8-sig"),
-                       file_name="previsoes_churn.csv", mime="text/csv", key=f"{source}_csv")
-    response = result.attrs.get("api_response")
-    if response is None:
-        response = {"predictions": json.loads(result.to_json(orient="records", double_precision=15)), "threshold": threshold}
-    st.markdown("#### Saída do FastAPI (/predict)")
-    st.caption("Probabilidade e classe recebidas da API, sem recalcular a classificação na tela. Para mais de 1.000 clientes, as previsões dos lotes são reunidas abaixo.")
-    st.json(response, expanded=len(result) == 1)
-    st.download_button("Baixar resposta em JSON", json.dumps(response, ensure_ascii=False, indent=2),
-                       file_name="resposta_fastapi.json", mime="application/json", key=f"{source}_json")
+def show_prediction(result, customer):
+    row = result.iloc[0]
+    prediction = int(row.churn_prediction)
+    probability = float(row.churn_probability)
+    customer_id = escape(str(customer["customerID"]))
+    badge = "Classe 1 · cancelamento" if prediction else "Classe 0 · permanência"
+    description = (
+        "O perfil deste cliente tem indicação de cancelamento. Vale avaliar uma ação de retenção."
+        if prediction else
+        "O perfil deste cliente tem indicação de permanência no serviço."
+    )
+    with st.container(border=True, key="prediction_card"):
+        st.markdown(f'''<div class="result-heading"><div><p class="result-eyebrow">RESULTADO DA CONSULTA</p>
+            <p class="result-id">Cliente {customer_id}</p></div>
+            <span class="class-badge {'leave' if prediction else 'stay'}">{badge}</span></div>
+            <p class="verdict">{CLASSIFICATION[prediction]}</p>
+            <p class="verdict-description">{description}</p>''', unsafe_allow_html=True)
+        cancel, stay = st.columns(2)
+        cancel.metric("Chance de cancelar", f"{probability:.1%}")
+        stay.metric("Chance de permanecer", f"{1 - probability:.1%}")
+        st.progress(probability, text="Probabilidade de cancelamento estimada pelo modelo")
+        st.caption("Classificação recebida do modelo treinado · limiar de decisão: 50%.")
+        with st.expander("Ver dados utilizados na análise"):
+            st.dataframe(pd.DataFrame([customer]), hide_index=True, width="stretch")
+        with st.expander("Ver resposta original da API"):
+            response = result.attrs.get("api_response")
+            if response is None:
+                response = {"predictions": json.loads(result.to_json(orient="records", double_precision=15)), "threshold": THRESHOLD}
+            st.json(response)
+            st.download_button("Baixar resultado em JSON", json.dumps(response, ensure_ascii=False, indent=2),
+                               file_name=f"previsao_{customer['customerID']}.json", mime="application/json", key="single_json")
+            docs_url = os.environ.get("CHURN_API_PUBLIC_URL")
+            if docs_url:
+                st.link_button("Abrir documentação da API", docs_url.rstrip("/") + "/docs")
 
 
-def customer_base(threshold):
-    st.subheader("Classifique os clientes da sua base")
-    try:
-        frame = load_customer_base()
-    except DashboardError as exc:
-        st.info(str(exc))
-        return
-    st.caption(f"Base carregada: {len(frame):,} clientes. Escolha um cliente para consultar o modelo já treinado.")
-    position = st.selectbox("Cliente da base", range(len(frame)), key="base_customer", format_func=lambda index: (
-        str(frame.iloc[index]["customerID"]) if "customerID" in frame else f"Linha {index + 1}"
-    ))
-    selected = frame.iloc[[position]]
-    with st.expander("Ver dados cadastrados deste cliente"):
-        st.dataframe(selected, hide_index=True, width="stretch")
-        st.caption("Churn é o resultado histórico da base e não é enviado ao modelo. A classificação abaixo vem da FastAPI.")
-    single, all_customers = st.columns(2)
-    analyze_one = single.button("Classificar cliente da base", type="primary")
-    analyze_all = all_customers.button("Classificar toda a base")
-    if analyze_one or analyze_all:
-        st.session_state.pop("base_result", None)
-        try:
-            customers = customers_from_frame(frame if analyze_all else selected)
-            with st.spinner("Consultando seu modelo pela FastAPI..."):
-                result = predict_customers(customers, threshold)
-            st.session_state["base_result"] = (result, threshold, None if analyze_all else position)
-        except DashboardError as exc:
-            st.error(str(exc))
-    if "base_result" in st.session_state:
-        result, used_threshold, used_position = st.session_state["base_result"]
-        if used_position is None or used_position == position:
-            show_results(result, used_threshold, "base")
+def lookup(frame):
+    with st.container(border=True, key="lookup_card"):
+        st.markdown('<p class="card-eyebrow">ENCONTRE SEU CLIENTE</p>', unsafe_allow_html=True)
+        with st.form("customer_lookup", border=False):
+            field, submit = st.columns([3.2, 1.2], gap="medium", vertical_alignment="bottom")
+            with field:
+                customer_id = st.text_input("Código do cliente", placeholder=f"Ex.: {frame.customerID.iloc[0]}",
+                                            key="customer_id", max_chars=100)
+            with submit:
+                submitted = st.form_submit_button("Consultar", type="primary", width="stretch")
+        st.markdown('<p class="examples-label">Experimente um cliente da sua base</p>', unsafe_allow_html=True)
+        examples = frame.customerID.astype(str).str.strip().drop_duplicates().head(4).tolist()
+        with st.container(key="examples"):
+            buttons = st.columns([1, 1, 1, 1, 1.3], gap="small")
+            for index, example in enumerate(examples):
+                buttons[index].button(example, key=f"example_{index}", on_click=select_example, args=(example,), width="stretch")
+        pending = st.session_state.pop("pending_customer", None)
+        if submitted or pending is not None:
+            st.session_state.pop("customer_prediction", None)
+            try:
+                customer = customer_from_id(frame, pending if pending is not None else customer_id)
+                with st.spinner("Consultando o modelo treinado..."):
+                    result = predict_customers([customer], THRESHOLD)
+                st.session_state["customer_prediction"] = (result, customer)
+            except DashboardError as exc:
+                st.error(str(exc))
+    if "customer_prediction" in st.session_state:
+        result, customer = st.session_state["customer_prediction"]
+        show_prediction(result, customer)
 
 
-def individual(threshold):
-    st.subheader("Conheça o risco de cada cliente")
-    st.write("Preencha o perfil e os serviços contratados para estimar a probabilidade de cancelamento.")
-    with st.form("customer_form"):
-        left, right = st.columns(2)
-        customer = {}
-        with left:
-            st.markdown("#### Perfil do cliente")
-            customer_id = st.text_input("Identificador do cliente (opcional)", key="customer_id")
-            customer["gender"] = choice("Gênero", {"Female": "Feminino", "Male": "Masculino"}, "gender")
-            customer["SeniorCitizen"] = choice("Pessoa idosa", {0: "Não", 1: "Sim"}, "SeniorCitizen")
-            customer["Partner"] = choice("Possui parceiro(a)", YES_NO, "Partner")
-            customer["Dependents"] = choice("Possui dependentes", YES_NO, "Dependents")
-            customer["tenure"] = st.number_input("Tempo como cliente (meses)", min_value=0, value=12, step=1, key="tenure")
-            customer["Contract"] = choice("Contrato", {
-                "Month-to-month": "Mensal", "One year": "Um ano", "Two year": "Dois anos",
-            }, "Contract")
-            customer["PaperlessBilling"] = choice("Fatura digital", YES_NO, "PaperlessBilling")
-            customer["PaymentMethod"] = choice("Forma de pagamento", {
-                "Electronic check": "Cheque eletrônico", "Mailed check": "Cheque pelo correio",
-                "Bank transfer (automatic)": "Transferência automática",
-                "Credit card (automatic)": "Cartão de crédito automático",
-            }, "PaymentMethod")
-            customer["MonthlyCharges"] = st.number_input("Cobrança mensal (unidade monetária da base)", min_value=0.0, value=89.9, step=1.0, key="MonthlyCharges")
-            customer["TotalCharges"] = st.number_input("Total cobrado (unidade monetária da base)", min_value=0.0, value=1078.8, step=1.0, key="TotalCharges")
-        with right:
-            st.markdown("#### Serviços contratados")
-            customer["PhoneService"] = choice("Telefonia", YES_NO, "PhoneService")
-            customer["MultipleLines"] = choice("Múltiplas linhas", {**YES_NO, "No phone service": "Sem telefonia"}, "MultipleLines")
-            customer["InternetService"] = choice("Internet", {"DSL": "DSL", "Fiber optic": "Fibra óptica", "No": "Sem internet"}, "InternetService")
-            for key, label in [
-                ("OnlineSecurity", "Segurança online"), ("OnlineBackup", "Backup online"),
-                ("DeviceProtection", "Proteção de dispositivo"), ("TechSupport", "Suporte técnico"),
-                ("StreamingTV", "Streaming de TV"), ("StreamingMovies", "Streaming de filmes"),
-            ]:
-                customer[key] = choice(label, {**YES_NO, "No internet service": "Sem internet"}, key)
-            st.info("O modelo estima uma probabilidade; a decisão de retenção deve considerar o contexto do cliente.")
-        submitted = st.form_submit_button("Analisar cliente", type="primary", width="stretch")
-    if submitted:
-        st.session_state.pop("individual_result", None)
-        if customer_id.strip():
-            customer["customerID"] = customer_id.strip()
-        # Harmoniza os serviços quando não existe telefonia ou internet.
-        if customer["PhoneService"] == "No":
-            customer["MultipleLines"] = "No phone service"
-        if customer["InternetService"] == "No":
-            for key in ("OnlineSecurity", "OnlineBackup", "DeviceProtection", "TechSupport", "StreamingTV", "StreamingMovies"):
-                customer[key] = "No internet service"
-        try:
-            with st.spinner("Consultando o modelo pela API..."):
-                result = predict_customers([customer], threshold)
-            st.session_state["individual_result"] = (result, threshold)
-        except DashboardError as exc:
-            st.error(str(exc))
-    if "individual_result" in st.session_state:
-        result, used_threshold = st.session_state["individual_result"]
-        show_results(result, used_threshold, "individual")
-
-
-def batch(threshold):
-    st.subheader("Analise sua carteira de clientes")
-    st.write(f"Envie um CSV com até {MAX_CSV_ROWS:,} clientes. As consultas são divididas em lotes de até 1.000 linhas.")
-    st.download_button("Baixar modelo de CSV", pd.DataFrame([{"customerID": "cliente-001", **EXAMPLE_CUSTOMER}]).to_csv(index=False).encode("utf-8-sig"),
-                       file_name="modelo_clientes.csv", mime="text/csv")
-    st.caption("Use UTF-8, vírgula ou ponto e vírgula como separador e ponto decimal. Colunas numéricas vazias são aceitas. A coluna Churn é ignorada.")
-    upload = st.file_uploader("Arquivo de clientes", type=["csv"])
-    if upload is None:
-        st.session_state.pop("batch_result", None)
-        return
-    import hashlib
-
-    upload_key = hashlib.sha256(upload.getvalue()).hexdigest()
-    if st.session_state.get("batch_upload") != upload_key:
-        st.session_state.pop("batch_result", None)
-        st.session_state["batch_upload"] = upload_key
-    try:
-        frame = pd.read_csv(upload, sep=None, engine="python", dtype=str, keep_default_na=False, encoding="utf-8-sig", nrows=MAX_CSV_ROWS + 1)
-        customers = customers_from_frame(frame)
-    except (ValueError, UnicodeError, pd.errors.ParserError, DashboardError) as exc:
-        st.error(str(exc) if isinstance(exc, DashboardError) else "Não foi possível ler o CSV. Confira a codificação, o separador e os cabeçalhos.")
-        return
-    st.caption(f"{len(customers):,} clientes prontos para análise.")
-    st.dataframe(frame.head(10), hide_index=True, width="stretch")
-    if st.button("Analisar CSV", type="primary"):
-        st.session_state.pop("batch_result", None)
-        try:
-            with st.spinner("Consultando os lotes na API..."):
-                result = predict_customers(customers, threshold)
-            st.session_state["batch_result"] = (result, threshold)
-        except DashboardError as exc:
-            st.error(str(exc))
-    if "batch_result" in st.session_state:
-        result, used_threshold = st.session_state["batch_result"]
-        show_results(result, used_threshold, "batch")
+def portfolio(frame):
+    with st.expander("Consultar a base completa"):
+        st.caption(f"Classifique os {len(frame):,} clientes de churn.csv com o mesmo modelo.")
+        if st.button("Classificar toda a base", key="classify_base"):
+            st.session_state.pop("portfolio_prediction", None)
+            try:
+                with st.spinner("Analisando os clientes da base..."):
+                    result = predict_customers(customers_from_frame(frame), THRESHOLD)
+                st.session_state["portfolio_prediction"] = result
+            except DashboardError as exc:
+                st.error(str(exc))
+        result = st.session_state.get("portfolio_prediction")
+        if result is not None:
+            display = result.copy()
+            display["Classificação"] = display.churn_prediction.map(CLASSIFICATION)
+            st.dataframe(display, hide_index=True, width="stretch")
+            st.download_button("Baixar classificações em CSV", display.to_csv(index=False).encode("utf-8-sig"),
+                               file_name="classificacoes_churn.csv", mime="text/csv", key="portfolio_csv")
+            with st.expander("Resposta original dos lotes da API"):
+                st.json(result.attrs.get("api_response"), expanded=False)
 
 
 def main():
-    st.set_page_config(page_title="Classificação de clientes | Churn", page_icon="📊", layout="wide")
-    st.markdown("""<style>
-        .stApp {background: #f5f7fb; color: #17243b;}
-        h1, h2, h3 {letter-spacing: -0.025em;}
-        [data-testid="stMetric"] {background: white; border: 1px solid #dce4ef; padding: 1rem; border-radius: 12px;}
-        [data-testid="stForm"] {background: white; border-radius: 16px;}
-        </style>""", unsafe_allow_html=True)
-    with st.sidebar:
-        st.markdown("## Churn Analytics")
-        st.caption("Inteligência para retenção de clientes")
-        st.divider()
-        threshold = st.slider("Limiar de classificação", min_value=0.0, max_value=1.0, value=0.5, step=0.05)
-        st.caption("Um limiar menor sinaliza mais clientes para avaliação. Alterá-lo exige uma nova análise.")
-        st.divider()
-        if check_health():
-            st.success("API conectada")
-        else:
-            st.warning("API iniciando ou indisponível. Aguarde e clique em Verificar conexão.")
-        st.button("Verificar conexão")
-        docs_url = os.environ.get("CHURN_API_PUBLIC_URL")
-        if docs_url:
-            st.link_button("Documentação da API", docs_url.rstrip("/") + "/docs")
-        st.caption("Streamlit · FastAPI · MLflow")
-    st.title("O cliente tende a continuar pagando?")
-    st.write("Escolha um cliente já cadastrado na sua base e clique em Classificar cliente da base. Seu modelo treinado retorna a classificação e a probabilidade.")
-    st.info("O alvo da base é Churn: permanência ou cancelamento do serviço. Continuar pagando significa permanecer cliente nesta análise; o modelo não prevê inadimplência nem garante pagamentos futuros.")
-    base_tab, single_tab, csv_tab = st.tabs(["Clientes da base", "Análise individual", "Análise por CSV"])
-    with base_tab:
-        customer_base(threshold)
-    with single_tab:
-        individual(threshold)
-    with csv_tab:
-        batch(threshold)
-    st.caption("As previsões são estimativas do modelo treinado. O limiar padrão de 50% não foi otimizado por custo de negócio.")
+    st.set_page_config(page_title="Churn Radar | Consulta de clientes", page_icon="📈", layout="wide")
+    st.markdown(RADAR_STYLE, unsafe_allow_html=True)
+    st.markdown('''<div class="radar-brand"><span class="radar-mark" aria-hidden="true">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none"><path d="M5 16L10 10L14 13L20 5M16 5H20V9"
+        stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </span> CHURN RADAR</div>''', unsafe_allow_html=True)
+    st.title("Qual a chance deste cliente cancelar?")
+    st.markdown('<p class="radar-subtitle">Informe o código do cliente (<code>customerID</code>) e descubra a probabilidade de cancelamento com o modelo já treinado.</p>', unsafe_allow_html=True)
+    try:
+        frame = load_customer_base()
+        if "customerID" not in frame or frame.customerID.astype("string").str.strip().eq("").any() or frame.customerID.isna().any():
+            raise DashboardError("A base churn.csv precisa ter um customerID preenchido para cada cliente.")
+    except DashboardError as exc:
+        st.error(str(exc))
+        return
+    connected = check_health()
+    status = "Modelo conectado" if connected else "Modelo iniciando ou indisponível"
+    st.markdown(f'''<div class="radar-meta"><span><strong>churn.csv</strong> · {len(frame):,} clientes</span>
+        <span><i class="status-dot{'' if connected else ' waiting'}"></i>{status}</span></div>''', unsafe_allow_html=True)
+    lookup(frame)
+    st.markdown('''<p class="radar-footer">Dados da sua base <strong>churn.csv</strong>, analisados pelo modelo treinado neste projeto.<br>
+        A previsão estima permanência ou cancelamento do serviço; não representa garantia de pagamento.</p>''', unsafe_allow_html=True)
+    portfolio(frame)
 
 
 def cli():
