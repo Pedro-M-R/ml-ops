@@ -1,0 +1,133 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Streamlit + FastAPI de churn em EC2 Amazon Linux 2023, administrada por SSM.
+Parameters:
+  ArtifactBucket:
+    Type: String
+    AllowedPattern: '[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]'
+  ArtifactKey:
+    Type: String
+    AllowedPattern: 'releases/[a-f0-9]{64}\.zip'
+  AllowedCidr:
+    Type: String
+    Description: IP/rede autorizada a acessar o Streamlit (exemplo 203.0.113.10/32).
+    AllowedPattern: '(\d{1,3}\.){3}\d{1,3}/\d{1,2}'
+  InstanceType:
+    Type: String
+    Default: t3.medium
+    AllowedValues: [t3.small, t3.medium, t3.large]
+  LatestAmi:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+Resources:
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.42.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+  Gateway:
+    Type: AWS::EC2::InternetGateway
+  GatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: {Ref: Vpc}
+      InternetGatewayId: {Ref: Gateway}
+  Subnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: {Ref: Vpc}
+      CidrBlock: 10.42.1.0/24
+      MapPublicIpOnLaunch: true
+  RouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: {Ref: Vpc}
+  DefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: GatewayAttachment
+    Properties:
+      RouteTableId: {Ref: RouteTable}
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: {Ref: Gateway}
+  RouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: {Ref: RouteTable}
+      SubnetId: {Ref: Subnet}
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Streamlit somente para a rede autorizada; sem SSH ou API publica.
+      VpcId: {Ref: Vpc}
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8501
+          ToPort: 8501
+          CidrIp: {Ref: AllowedCidr}
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: [ec2.amazonaws.com]}
+            Action: [sts:AssumeRole]
+      ManagedPolicyArns:
+        - Fn::Sub: arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: ReadDeploymentBundle
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [s3:GetObject]
+                Resource:
+                  Fn::Sub: arn:${AWS::Partition}:s3:::${ArtifactBucket}/${ArtifactKey}
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles: [{Ref: InstanceRole}]
+  Instance:
+    Type: AWS::EC2::Instance
+    DependsOn: [DefaultRoute, RouteAssociation]
+    Properties:
+      ImageId: {Ref: LatestAmi}
+      InstanceType: {Ref: InstanceType}
+      IamInstanceProfile: {Ref: InstanceProfile}
+      SubnetId: {Ref: Subnet}
+      SecurityGroupIds: [{Ref: SecurityGroup}]
+      MetadataOptions:
+        HttpEndpoint: enabled
+        HttpTokens: required
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 30
+            VolumeType: gp3
+            Encrypted: true
+            DeleteOnTermination: true
+      Tags:
+        - Key: Name
+          Value: {Ref: 'AWS::StackName'}
+      UserData:
+        Fn::Base64:
+          Fn::Sub: |
+            #!/bin/bash
+            set -euo pipefail
+            exec > >(tee /var/log/churn-bootstrap.log | logger -t churn-bootstrap -s 2>/dev/console) 2>&1
+            dnf install -y unzip
+            mkdir -p /opt/churn
+            aws s3 cp 's3://${ArtifactBucket}/${ArtifactKey}' /opt/churn/bundle.zip --region '${AWS::Region}'
+            cd /opt/churn
+            unzip -o bundle.zip
+            bash churn-portatil/aws/bootstrap.sh
+Outputs:
+  DashboardUrl:
+    Value:
+      Fn::Sub: http://${Instance.PublicIp}:8501
+  InstanceId:
+    Value: {Ref: Instance}
+  SessionManagerUrl:
+    Value:
+      Fn::Sub: https://${AWS::Region}.console.aws.amazon.com/systems-manager/session-manager/${Instance}?region=${AWS::Region}

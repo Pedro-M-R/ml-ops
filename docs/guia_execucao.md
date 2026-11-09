@@ -11,6 +11,10 @@ Python e as versões de `uv.lock`. Não copie o ambiente `.venv`.
 Extraia `dist/churn-portatil.zip` e abra um terminal na pasta `churn-portatil`
 (ou na pasta `ml-ops`, se estiver usando o repositório).
 
+Se o PowerShell está na pasta `trabalhojose`, execute `Set-Location .\ml-ops`
+antes dos comandos abaixo. O arquivo `pyproject.toml` está em `ml-ops`, não em
+`trabalhojose`. A mensagem `No pyproject.toml found` indica a pasta incorreta.
+
 No Windows PowerShell, se outro ambiente estiver ativo, como `(.venv-1)`,
 execute `deactivate` antes dos comandos abaixo. O `uv` usa a `.venv` do projeto;
 não é necessário ativá-la. Isso evita usar um Python sem `uv` ou receber o aviso
@@ -52,6 +56,20 @@ A documentação interativa está em http://127.0.0.1:8000/docs (Swagger UI) e
 http://127.0.0.1:8000/redoc (ReDoc), com os esquemas de entrada e saída.
 `GET /health` e `GET /ping` retornam HTTP 200 e `{"status":"ok"}` quando
 a aplicação está pronta.
+
+### Interface Streamlit e AWS
+
+Com a API em execução, abra outro terminal na pasta do projeto e execute:
+
+```bash
+python -m uv run churn-dashboard
+```
+
+Acesse http://127.0.0.1:8501 para preencher um cliente ou enviar um CSV e baixar
+as previsões. O limiar pode ser ajustado na barra lateral. O painel chama a
+FastAPI; a inferência continua no modelo exportado da API.
+O [guia de implantação AWS](deploy_aws.md) mostra execução com Docker,
+configuração da conta e criação da infraestrutura EC2 por CloudFormation.
 
 Em outro terminal, faça um teste real da API:
 

@@ -11,6 +11,8 @@ dependencies = [
     "pydantic-settings==2.6.1",
     "mlflow>=3,<4",
     "pyyaml>=6.0.3",
+    "httpx>=0.28,<1",
+    "streamlit>=1.50,<2",
 ]
 
 [dependency-groups]
@@ -26,6 +28,7 @@ churn-tune = "churn.tuning:cli"
 churn-serve = "churn.deploy:serve"
 churn-ui = "churn.deploy:ui"
 churn-predict = "churn.deploy:predict"
+churn-dashboard = "churn.dashboard:cli"
 
 [build-system]
 requires = ["hatchling"]

@@ -11,7 +11,8 @@ RUN uv sync --locked --no-dev
 
 COPY deployment/ ./deployment/
 COPY reports/selection.json ./reports/selection.json
+COPY .streamlit/ ./.streamlit/
 
 ENV PATH="/app/.venv/bin:$PATH"
-EXPOSE 8000
-CMD ["churn-serve", "--host", "0.0.0.0", "--port", "8000"]
+EXPOSE 8000 8501
+CMD ["churn-serve", "--host", "0.0.0.0"]

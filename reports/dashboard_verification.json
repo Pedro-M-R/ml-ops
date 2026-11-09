@@ -1,0 +1,14 @@
+{
+  "verified_at_utc": "2026-11-09T19:55:05.010604+00:00",
+  "api_health": true,
+  "csv_rows_verified": 7043,
+  "http_batches": 8,
+  "max_probability_difference": 0.0,
+  "customer_order_preserved": true,
+  "streamlit_form_with_live_api": "passed",
+  "unit_and_integration_tests_passed": 152,
+  "cloudformation_lint": "passed",
+  "docker_runtime_verified": false,
+  "aws_deployed": false,
+  "browser_visual_verified": false
+}

@@ -1,4 +1,8 @@
 .env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+frontend/.streamlit/secrets.toml
 .venv/
 
 __pycache__/
@@ -15,7 +19,9 @@ data/*
 mlruns/
 mlartifacts/
 mlflow.db*
-deployment/
+# Publica somente o artefato selecionado; outros treinos continuam locais.
+deployment/*
+!deployment/model-v1-20d3e3df/
 dist/
 predictions.csv
 runtime/

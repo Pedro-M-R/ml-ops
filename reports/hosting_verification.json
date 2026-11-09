@@ -1,0 +1,15 @@
+{
+  "verified_at_utc": "2026-11-09T20:39:08.172832+00:00",
+  "tests_passed": 157,
+  "render_blueprint_official_schema": "passed",
+  "frontend_clean_environment": "passed",
+  "frontend_reads_streamlit_secrets": "passed",
+  "frontend_live_api_prediction": "passed",
+  "api_reads_platform_port": "passed",
+  "frontend_imports_mlflow": false,
+  "selected_model_available_to_git": true,
+  "local_secrets_ignored_by_git": true,
+  "docker_build_verified": false,
+  "render_deployed": false,
+  "streamlit_cloud_deployed": false
+}

@@ -14,11 +14,12 @@ def main():
     args = parser.parse_args()
     selection = json.loads((ROOT / "reports/selection.json").read_text(encoding="utf-8"))
     files = []
-    for name in ("pyproject.toml", "uv.lock", ".python-version", "README.md", "Dockerfile", "docker-compose.yml", ".dockerignore"):
+    for name in ("pyproject.toml", "uv.lock", ".python-version", "README.md", "Dockerfile", "docker-compose.yml", ".dockerignore", ".gitattributes", "render.yaml"):
         files.append(ROOT / name)
-    for name in ("src", "scripts", "tests", "reports", "docs", selection["export_path"]):
+    for name in ("src", "scripts", "tests", "reports", "docs", "aws", "frontend", ".streamlit", selection["export_path"]):
         files.extend(path for path in (ROOT / name).rglob("*") if path.is_file()
-                     and "__pycache__" not in path.parts and path.suffix != ".pyc")
+                     and "__pycache__" not in path.parts and path.suffix != ".pyc"
+                     and path.name != "secrets.toml")
     if args.include_data:
         files.extend([ROOT / "data/churn.csv", ROOT / "data/churn.csv.dvc"])
     destination = ROOT / "dist/churn-portatil.zip"

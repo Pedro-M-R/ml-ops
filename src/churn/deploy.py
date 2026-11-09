@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -25,7 +26,7 @@ def serve():
 
     parser = argparse.ArgumentParser(description="Inicia a API FastAPI com o pipeline exportado de churn.")
     parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8000")))
     parser.add_argument("--model", help="Pasta exportada ou URI models:/nome/versão")
     args = parser.parse_args()
     uvicorn.run(create_app(model_uri=args.model), host=args.host, port=args.port)

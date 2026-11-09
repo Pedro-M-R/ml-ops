@@ -1,6 +1,12 @@
 # Churn: tuning, registro e deploy
 
-Projeto de predição de churn com seleção por validação cruzada, MLflow Model Registry e API FastAPI.
+Projeto de predição de churn com seleção por validação cruzada, MLflow Model Registry, API FastAPI e painel Streamlit.
+
+**Interface e AWS:** [executar o painel e criar a infraestrutura EC2](docs/deploy_aws.md).
+**Alternativa à AWS:** [FastAPI no Render e tela no Streamlit Cloud](docs/deploy_render_streamlit.md).
+Com a API iniciada, `python -m uv run churn-dashboard` abre o painel em
+http://127.0.0.1:8501. Ele permite consulta individual, envio de CSV e download
+das previsões. O deploy AWS inclui template CloudFormation e script de publicação.
 
 **Documentação atual:** [como executar em outro PC](docs/guia_execucao.md). Resultados reais:
 `reports/selection.json` e `reports/comparison.csv`. Pacote transportável:

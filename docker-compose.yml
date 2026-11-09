@@ -1,8 +1,32 @@
 services:
   api:
     build: .
+    restart: unless-stopped
     ports:
       - "127.0.0.1:8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      start_period: 60s
+      retries: 12
+  dashboard:
+    build: .
+    restart: unless-stopped
+    environment:
+      CHURN_API_URL: http://api:8000
+      CHURN_API_PUBLIC_URL: http://127.0.0.1:8000
+    ports:
+      - "127.0.0.1:8501:8501"
+    depends_on:
+      api:
+        condition: service_healthy
+    command: churn-dashboard --server.address 0.0.0.0 --server.port 8501
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
   treino:
     build: .
     profiles: ["treino"]

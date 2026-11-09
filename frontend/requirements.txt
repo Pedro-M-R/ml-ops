@@ -1,0 +1,4 @@
+# O modelo e o MLflow rodam no Render; o painel precisa apenas do cliente HTTP.
+streamlit==1.67.0
+pandas==2.2.3
+httpx==0.28.1
