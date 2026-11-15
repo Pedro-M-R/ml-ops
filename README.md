@@ -6,11 +6,12 @@ Foi realizado o desenvolvimento de uma aplicação para consultar a tendência
 de permanência de clientes em um serviço. O trabalho reuniu preparação de dados,
 comparação de modelos e publicação de uma interface para apresentar as previsões.
 
-**[Acessar o front-end](http://127.0.0.1:8501)**
+**[Acessar o front-end](https://mlopsjose.streamlit.app/)**
 
-Esse endereço abre a aplicação local. Para utilizá-lo, o Docker e os
-contêineres do projeto precisam estar rodando no computador em que o link
-for aberto. Ele não corresponde a um IP público de hospedagem.
+Esse é o endereço público do painel e pode ser compartilhado com outras
+pessoas. A interface está hospedada no Streamlit Community Cloud e não depende
+do Docker local para ser acessada. O endereço `127.0.0.1:8501` fica reservado
+à execução no próprio computador.
 
 O projeto partiu de uma base com **7.043 clientes**. A partir dos registros,
 foi preparado um modelo para estimar o churn, termo utilizado para o
