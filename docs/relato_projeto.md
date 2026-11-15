@@ -1,135 +1,100 @@
-# Desenvolvimento e publicação do projeto Permanência
+# Registro do desenvolvimento do Permanência
 
-## Objetivo da aplicação
+Foi realizado um trabalho para transformar uma análise de churn em uma aplicação
+de consulta. O interesse do projeto está nessa passagem: além de treinar um
+modelo, foi necessário preparar sua utilização por uma interface, organizar a
+execução e escolher uma forma de disponibilizar o serviço pela internet.
 
-Foi desenvolvido um projeto de aprendizado de máquina para estimar a chance de
-cancelamento de um serviço por um cliente. Esse tipo de cancelamento recebe o
-nome de churn. O objetivo foi transformar um modelo treinado em uma aplicação
-que pudesse ser consultada pela internet, com um resultado fácil de interpretar.
+Foi utilizada uma base de 7.043 clientes. O termo churn corresponde ao
+cancelamento de um serviço, que foi o comportamento considerado no treinamento.
+A consulta foi organizada a partir do código do cliente, aproveitando os dados
+já cadastrados e evitando o preenchimento manual de todas as características.
 
-Foi utilizada uma base de 7.043 clientes. Na aplicação, a consulta é realizada
-pelo código do cliente, sem necessidade de preencher manualmente todas as
-características do cadastro. O resultado apresenta a probabilidade de churn,
-a probabilidade de permanência e a classe definida pelo modelo.
+## Construção da análise
 
-## Organização do fluxo
+Antes da comparação dos modelos, foi realizada a validação dos dados com
+Pandera. Foi utilizado o DVC para relacionar o treinamento à versão da base,
+e o tratamento das características foi incorporado ao pipeline. Dessa maneira,
+a preparação utilizada nas previsões acompanha o modelo exportado.
 
-Foi realizada a divisão do sistema em três responsabilidades. O Streamlit foi
-utilizado para apresentar a tela. A FastAPI ficou responsável por disponibilizar
-os clientes e executar as previsões. O armazenamento foi preparado em PostgreSQL,
-mantendo também a possibilidade de utilizar o CSV no backend quando o banco
-ainda não estiver configurado.
+Foram comparadas 22 configurações. Foi reservada uma parte da base para o teste
+final, enquanto a seleção foi realizada por validação cruzada de cinco partes
+nos dados de treinamento. A regressão logística apresentou o resultado escolhido
+nesse processo e foi registrada no MLflow como `churn-champion`.
 
-O caminho da consulta pode ser representado assim:
-
-**Código do cliente → Streamlit → FastAPI → base e modelo → resultado no painel.**
-
-A fonte da inferência apresentada na interface é a **FastAPI**. A tela envia
-uma solicitação e recebe uma resposta JSON com os valores calculados. Dessa
-forma, a previsão não é inventada na interface e a resposta pode ser conferida.
-
-## Preparação e escolha do modelo
-
-Foi realizada a validação da estrutura dos dados antes do treinamento. Também
-foi mantido o controle da versão da base com DVC, para relacionar o treinamento
-ao arquivo utilizado.
-
-Foram comparadas 22 configurações, com validação cruzada de cinco partes no
-conjunto de treinamento. O conjunto de teste foi reservado para a avaliação
-após a seleção. Essa separação evita escolher o modelo a partir do resultado
-que deveria representar sua avaliação final.
-
-O modelo selecionado foi uma regressão logística. Foram obtidos ROC AUC de
-0,8265 na validação cruzada e 0,8467 no teste. A acurácia no teste foi de 77,91%.
-As métricas foram registradas no MLflow, e o pipeline completo foi exportado
-para ser carregado pela API. Os números estão em
+No teste com 1.761 registros, foram obtidos ROC AUC de 0,8467, acurácia de 77,91%
+e F1 de 0,6212. O treinamento utilizou os outros 5.282 registros. Os resultados
+e parâmetros podem ser conferidos em
 [reports/selection.json](../reports/selection.json).
 
-## Docker e PostgreSQL
+O MLflow foi utilizado para guardar os experimentos e a versão selecionada.
+Foi exportado o pipeline completo, permitindo que o serviço de previsão
+carregue o artefato já treinado.
 
-Foi utilizada a conteinerização para organizar a execução da API, do painel e
-do PostgreSQL. Com o Docker Compose, os serviços podem ser iniciados a partir
-da mesma configuração, respeitando a ordem de disponibilidade do banco e da API.
+## Utilização do modelo na aplicação
 
-Foi criado um volume para preservar a carteira entre recriações dos
-contêineres. A importação inicial do CSV ocorre quando o volume do banco é
-preparado pela primeira vez. O usuário utilizado pela API recebe somente
-permissão de leitura sobre os clientes.
+Foi desenvolvida a interface Permanência com Streamlit. A FastAPI ficou
+responsável por disponibilizar os clientes e executar as previsões. Portanto,
+os dados apresentados na tela são recebidos desse serviço, que aparece como
+fonte da inferência.
 
-O Docker local depende do computador ligado. A hospedagem pública foi tratada
-separadamente, para que o acesso à aplicação não dependesse da execução no PC.
+Na apresentação, foi priorizada a leitura do resultado. A tendência de
+permanência ou cancelamento é acompanhada pelas probabilidades e pelo limiar
+utilizado na decisão. O padrão é 50%: a classe de churn é atribuída quando a
+probabilidade alcança ou ultrapassa esse valor.
 
-## Dificuldade encontrada na AWS
+Foi incluída uma escala para relacionar a probabilidade ao limiar, além da
+resposta original em JSON para conferência. Também foi disponibilizada a
+classificação da carteira em lote, com exportação dos resultados. O modelo
+foi preparado para estimar cancelamento, e não para avaliar inadimplência.
 
-Foi preparada uma alternativa de implantação na AWS com EC2, CloudFormation e
-Docker. Entretanto, a publicação não foi concluída durante as tentativas de
-configuração do ambiente.
+Para organizar a execução local, foi utilizado Docker Compose. Foi preparado
+um contêiner para a API, outro para o painel e outro para o PostgreSQL. O banco
+possui um volume persistente, e foi criado um usuário de leitura para a API.
+Isso permite conservar a carteira entre recriações dos contêineres e restringir
+as operações realizadas durante as consultas.
 
-A mensagem exata da falha não foi preservada. Por esse motivo, não foi
-confirmada uma causa específica, como problema de credencial, permissão ou
-ativação de serviço. O guia do projeto contém orientações para o erro
-`OptInRequired`, mas esse código não foi confirmado como o erro ocorrido.
-Na documentação oficial da AWS, ele está relacionado à necessidade de habilitar
-o serviço na conta. [Referência do CloudFormation](https://docs.aws.amazon.com/AWSCloudFormation/latest/APIReference/CommonErrors.html)
+## Escolha do ambiente de publicação
 
-Diante da dificuldade de concluir essa etapa, foi adotado outro caminho de
-publicação para permitir a continuidade e a apresentação do projeto. Os
-arquivos AWS foram preservados para uma implantação futura.
+A execução local depende do computador ligado. Por isso, foi necessária uma
+etapa de hospedagem para permitir o acesso à demonstração fora desse ambiente.
 
-## O que é o Render
+Inicialmente, foi considerada a publicação na AWS, utilizando EC2 e
+CloudFormation. Foram preparados os arquivos necessários para essa alternativa,
+mas a implantação não foi concluída durante a configuração do ambiente. A
+mensagem do erro não foi preservada, de modo que não foi possível confirmar
+uma causa técnica específica para a dificuldade encontrada.
 
-O Render é uma plataforma de hospedagem que executa aplicações em servidores
-na nuvem. Foi utilizado para publicar a FastAPI a partir do código do projeto,
-aproveitando a imagem Docker e o modelo preparado.
+Foi utilizado o Render como alternativa para dar continuidade à publicação da
+FastAPI. O Render é uma plataforma de hospedagem em nuvem que permite executar
+aplicações a partir do código do repositório ou de uma imagem Docker. No
+projeto, foi possível aproveitar a estrutura preparada para a API e o modelo
+exportado. [Documentação da plataforma](https://render.com/docs/web-services)
 
-A plataforma oferece endereço público com HTTPS e integração com o GitHub para
-publicação de versões. Também disponibiliza PostgreSQL gerenciado, que pode
-ser conectado à API. [Serviços web do Render](https://render.com/docs/web-services)
+A escolha reduziu a necessidade de administrar um servidor EC2 para apresentar
+a aplicação. A interface foi mantida no Streamlit Community Cloud, no endereço
+[mlopsjose.streamlit.app](https://mlopsjose.streamlit.app/), enquanto o Render
+foi adotado para o serviço de previsão.
 
-## Motivo da escolha do Render
+Os arquivos AWS foram preservados como possibilidade de continuidade. O
+PostgreSQL gerenciado do Render também recebeu um roteiro de configuração e
+um importador, mas sua utilização depende da criação desse banco na conta.
+Sem um banco configurado, os clientes podem ser lidos do CSV pela própria API,
+mantendo a FastAPI como origem das consultas do painel.
 
-Foi utilizado o Render para dar continuidade à hospedagem da API enquanto a
-alternativa AWS não estava concluída. A escolha permitiu aproveitar a estrutura
-existente do projeto e reduzir o trabalho de administração de um servidor EC2.
+As condições dos serviços gratuitos precisam ser consideradas na manutenção
+da demonstração. O Render informa os limites de disponibilidade e de duração
+do PostgreSQL gratuito em sua
+[documentação de planos gratuitos](https://render.com/docs/free).
 
-A interface foi publicada no Streamlit Community Cloud, mantendo um endereço
-de acesso simples. Nesse formato, o Streamlit apresenta os dados e consulta a
-FastAPI hospedada no Render. O computador utilizado no desenvolvimento pode
-ser desligado sem encerrar os serviços que já estiverem publicados nessas plataformas.
+## Conferência da entrega
 
-O Render foi adotado como alternativa de hospedagem da aplicação. Essa escolha
-não equivale à execução de uma EC2, pois a infraestrutura é administrada de
-outra forma pela plataforma.
+Foram executados testes automatizados dos dados, do modelo, dos contratos da
+API e das consultas na interface. Também foram realizadas verificações com
+Docker e PostgreSQL, abrangendo a importação dos 7.043 clientes, a conservação
+dos registros e a restrição de escrita da conta utilizada pela API.
 
-## Situação da publicação
-
-Foi publicado o painel em [mlopsjose.streamlit.app](https://mlopsjose.streamlit.app/)
-e foi adotado o Render para a API. As atualizações implementadas precisam
-concluir o deploy nos serviços conectados ao GitHub para aparecerem online.
-
-O PostgreSQL em Docker foi validado localmente. Para utilizá-lo como serviço
-gerenciado no Render, foram preparados um importador de clientes e um roteiro
-de conexão. A criação desse banco e a configuração de suas credenciais ainda
-são etapas da conta Render, descritas no
-[guia de publicação com PostgreSQL](deploy_render_postgres.md).
-
-No plano gratuito, o serviço web do Render pode suspender após 15 minutos sem
-tráfego. O PostgreSQL gratuito expira após 30 dias. Essas limitações devem ser
-consideradas ao manter a demonstração disponível.
-[Limites da modalidade gratuita](https://render.com/docs/free)
-
-## Verificações realizadas
-
-Foram realizados testes automatizados da preparação dos dados, do modelo, das
-rotas da API e do fluxo do painel. Também foram verificadas a importação dos
-7.043 clientes, a preservação dos registros após a recriação dos contêineres e
-a restrição de escrita do usuário utilizado pela API.
-
-Foi conferido que o resultado apresentado no painel utiliza os valores
-devolvidos pela FastAPI, incluindo a probabilidade, o limiar e a classe. A
-resposta original em JSON foi mantida para permitir a conferência dos dados.
-
-O projeto permite consultar um modelo treinado por uma aplicação online,
-mantendo separadas as etapas de treinamento, inferência, armazenamento e
-hospedagem. As previsões representam estimativas de cancelamento e não devem
-ser interpretadas como garantia de comportamento futuro de um cliente.
+Foi mantido no painel o conteúdo retornado pela FastAPI, permitindo relacionar
+a interpretação visual aos números calculados pelo modelo. A documentação
+de instalação e publicação foi organizada em guias separados, para facilitar
+a reprodução do ambiente e a continuidade da hospedagem.

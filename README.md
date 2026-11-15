@@ -1,237 +1,132 @@
-# Permanência · Previsão de churn com MLOps
+# Permanência
 
-Foi desenvolvido um sistema para estimar a probabilidade de um cliente cancelar
-um serviço. Esse cancelamento é chamado de **churn**. A aplicação permite
-consultar um cliente pelo código e visualizar a previsão de forma simples.
+### Da análise dos clientes a uma aplicação disponível na internet
 
-**[Acessar o painel publicado](https://mlopsjose.streamlit.app/)**
+Foi realizado o desenvolvimento de uma aplicação para consultar a tendência
+de permanência de clientes em um serviço. O trabalho reuniu preparação de dados,
+comparação de modelos e publicação de uma interface para apresentar as previsões.
 
-No painel, basta informar um `customerID` ou selecionar um dos clientes de
-exemplo e clicar em **Consultar**. Foi utilizada uma base de **7.043 clientes**.
-A previsão representa uma estimativa do modelo, não uma confirmação de que o
-cancelamento acontecerá.
+**[Entrar no Permanência](https://mlopsjose.streamlit.app/)**
 
-## Como o sistema funciona
+O projeto partiu de uma base com **7.043 clientes**. A partir dos registros,
+foi preparado um modelo para estimar o churn, termo utilizado para o
+cancelamento de um serviço. O resultado do treinamento foi transformado em
+um recurso de consulta, acessível pelo código de cada cliente.
 
-Foi realizada a separação entre a interface, o serviço de previsão e o
-armazenamento dos clientes. A **fonte consultada pelo painel é a FastAPI**.
+## A decisão de levar o projeto para a internet
 
-```mermaid
-flowchart LR
-    pessoa[Pessoa que acessa o painel] --> tela[Streamlit]
-    tela -->|Consulta os clientes e solicita previsões| api[FastAPI]
-    api --> modelo[Modelo treinado]
-    api --> dados[Base de clientes]
-    dados --> banco[PostgreSQL quando configurado]
-    dados --> arquivo[CSV quando não há banco configurado]
-    modelo -->|Probabilidade e classe| api
-    api -->|Resposta JSON| tela
-```
+Executar o modelo no computador foi uma etapa do desenvolvimento. Para permitir
+o acesso à demonstração sem manter esse computador ligado, foi realizada a
+separação entre o ambiente local e os serviços de hospedagem.
 
-1. O código do cliente é informado na tela.
-2. Os dados cadastrados são obtidos pela FastAPI.
-3. O modelo treinado calcula a probabilidade de cancelamento.
-4. A API devolve a probabilidade, a classe e o limiar utilizado.
-5. O resultado é apresentado no painel, junto da resposta original em JSON.
+Foi utilizado o **Render para a API** e o **Streamlit Community Cloud para o
+painel**. O Render é uma plataforma que disponibiliza aplicações em servidores
+na nuvem. No projeto, ele permite executar a FastAPI a partir da estrutura
+Docker já preparada, oferecendo um endereço para receber as consultas.
+[Conhecer o Render](https://render.com/docs/web-services)
 
-Quando o PostgreSQL está configurado, foi definido um usuário somente de
-leitura para as consultas da API. Sem banco configurado, o CSV incluído na
-imagem é lido pelo próprio backend. Nos dois casos, o painel utiliza a FastAPI.
-Se um banco configurado ficar indisponível, é exibido um erro, sem trocar a
-origem dos dados silenciosamente.
+A AWS havia sido considerada para a implantação com EC2. Entretanto, essa
+publicação não foi concluída durante a configuração do ambiente. Como não foi
+preservada a mensagem da falha, não foi possível identificar com segurança sua
+causa específica. Foi então adotado o Render para dar continuidade à publicação
+da aplicação, aproveitando o código e o modelo existentes.
 
-## O que aparece no resultado
+Os arquivos destinados à AWS foram mantidos no repositório como alternativa
+futura. A hospedagem adotada para a API utiliza o Render; a criação de uma EC2
+não foi concluída nesta entrega.
 
-Foi criada uma apresentação com destaque para a interpretação da previsão,
-acompanhada dos valores recebidos da API.
+## Uma consulta com informações para interpretar
 
-| Informação | Explicação |
-| --- | --- |
-| Probabilidade de churn | Chance estimada de cancelamento do serviço. |
-| Probabilidade de permanência | Valor complementar à probabilidade de churn. |
-| Limiar da decisão | Ponto usado para transformar a probabilidade em uma classe. O padrão é 50%. |
-| Classe 0 | Tendência de permanência. |
-| Classe 1 | Tendência de cancelamento, quando a probabilidade é maior ou igual ao limiar. |
-| Fonte da inferência | FastAPI, responsável por executar a previsão com o modelo. |
-| Resposta JSON | Dados originais devolvidos pela API, disponíveis para conferência e download. |
+Foi criada a interface Permanência para reunir a pesquisa do cliente e a leitura
+da previsão em um mesmo lugar. A consulta utiliza o `customerID` cadastrado;
+também foram disponibilizados códigos de exemplo retirados da própria base.
 
-Por exemplo, uma probabilidade de churn de 72% resulta na classe 1 quando o
-limiar é 50%. Uma probabilidade de 28% resulta na classe 0. Esses números são
-apenas exemplos de interpretação, não resultados de um cliente específico.
-O modelo estima cancelamento do serviço; não foi desenvolvido para prever
-inadimplência ou garantir pagamentos futuros.
+A **FastAPI é a fonte dos dados consultados e das previsões apresentadas**.
+O Streamlit ficou responsável pela apresentação. O cálculo é executado pelo
+modelo carregado na API, e os valores recebidos são utilizados na tela.
 
-## Ferramentas utilizadas
+Foi dado destaque à tendência apontada pelo modelo, acompanhada das
+probabilidades de churn e permanência. O limiar de 50% também é exibido para
+explicar a classificação: valores de churn a partir desse ponto correspondem
+à classe 1; abaixo dele, à classe 0. Uma escala permite visualizar a posição
+da previsão em relação a esse limite.
 
-| Ferramenta | Papel no projeto |
-| --- | --- |
-| Python e scikit-learn | Preparação dos dados, treinamento e execução do modelo. |
-| Pandera | Validação da estrutura e dos valores da base. |
-| DVC | Controle de versão do arquivo de dados utilizado no treinamento. |
-| MLflow | Registro dos experimentos, métricas, versões e modelo selecionado. |
-| FastAPI | Disponibilização dos clientes e das previsões por HTTP. |
-| Streamlit | Construção da interface de consulta e apresentação do resultado. |
-| Docker e Compose | Execução da API, do painel e do banco em contêineres. |
-| PostgreSQL | Armazenamento persistente da carteira de clientes. |
-| Render | Hospedagem da API na nuvem. |
-| Streamlit Community Cloud | Hospedagem da interface no endereço público do projeto. |
+Para permitir a conferência, foi mantida a resposta original da FastAPI em
+JSON, com opção de download. A aplicação também permite consultar a carteira
+completa e exportar as classificações. O uso previsto é a análise de tendência
+de cancelamento, não a avaliação de inadimplência.
 
-O banco do MLflow continua separado da carteira de clientes: os experimentos
-utilizam SQLite no ambiente local, enquanto o PostgreSQL foi preparado para os
-dados consultados pela aplicação.
+## O trabalho realizado antes da publicação
 
-## Treinamento e resultado registrado
+Foi preparada uma rotina de validação da base com Pandera e de controle dos
+dados com DVC. O tratamento das características foi incorporado ao pipeline
+do modelo, mantendo a mesma preparação no treinamento e na inferência.
 
-Foi realizada a comparação de **22 configurações**, incluindo um modelo de
-referência, regressão logística, Random Forest e HistGradientBoosting.
-A escolha foi feita pela média de ROC AUC em uma validação cruzada de cinco
-partes, utilizando somente os dados de treinamento. O conjunto de teste foi
-utilizado após a escolha do modelo.
+Foram avaliadas **22 configurações**. A escolha utilizou validação cruzada
+de cinco partes sobre o conjunto de treinamento. Os dados de teste ficaram
+reservados para a avaliação após essa escolha. Foi selecionada uma
+**regressão logística**, registrada no MLflow como `churn-champion`.
 
-Foi utilizada uma divisão estratificada de **75% para treinamento** e
-**25% para teste**, com semente 2026. O modelo selecionado foi uma
-**regressão logística**, registrada no MLflow como `churn-champion`, versão 1,
-com o alias `champion`.
+Na avaliação registrada, foram obtidos:
 
-| Resultado | Valor |
-| --- | --- |
-| Clientes na base | 7.043 |
-| Registros de treinamento | 5.282 |
-| Registros de teste | 1.761 |
-| ROC AUC na validação cruzada | 0,8265 |
-| ROC AUC no teste | 0,8467 |
-| Acurácia no teste | 77,91% |
-| F1 no teste | 0,6212 |
+- **0,8467 de ROC AUC** no conjunto de teste;
+- **77,91% de acurácia** no mesmo conjunto;
+- **0,6212 de F1**;
+- **5.282 registros para treinamento** e **1.761 para teste**.
 
-Esses valores foram extraídos de [reports/selection.json](reports/selection.json).
-ROC AUC mede a capacidade de distinguir as classes ao variar o limiar; não
-significa que 84,67% de todas as previsões estejam corretas. A taxa de acertos
-nesse teste é representada pela acurácia.
+A acurácia representa a proporção de classificações corretas nesse teste.
+ROC AUC e F1 avaliam outros aspectos do desempenho e não devem ser lidos
+como percentuais de acerto. O registro completo está em
+[reports/selection.json](reports/selection.json).
 
-O pipeline exportado inclui o tratamento dos dados e o classificador.
-Ele é carregado pela API para realizar as previsões, sem necessidade de treinar
-novamente a cada consulta.
+O MLflow foi utilizado para manter os experimentos e a versão selecionada.
+O pipeline exportado acompanha o projeto, permitindo iniciar a API sem
+executar um novo treinamento a cada consulta.
 
-## O que é o Render e por que foi utilizado
+## Organização da execução e dos clientes
 
-O **Render é uma plataforma de hospedagem em nuvem** que permite publicar
-aplicações a partir de um repositório Git ou de uma imagem Docker. Foi utilizado
-para disponibilizar a FastAPI pela internet, com endereço HTTPS e execução fora
-do computador local. A plataforma também oferece PostgreSQL gerenciado.
-[Documentação do Render](https://render.com/docs/web-services)
+Foi preparada uma instalação local com Docker Compose, reunindo painel,
+API e PostgreSQL. O banco utiliza um volume para conservar os registros
+entre recriações dos contêineres, e a API consulta a carteira com uma conta
+somente de leitura.
 
-Foi escolhida essa alternativa para dar continuidade à demonstração enquanto
-a implantação na AWS não era concluída. Com o Render, foi possível aproveitar
-o Dockerfile e o modelo já preparados, reduzindo as etapas de configuração de
-um servidor. A interface foi mantida no Streamlit Community Cloud.
+O PostgreSQL em Docker foi implementado e validado no ambiente local. Também
+foram preparados um importador e instruções para utilizar o PostgreSQL
+gerenciado do Render. Essa opção ainda depende da criação do banco e da
+configuração das credenciais na conta de hospedagem.
 
-Na preparação da alternativa AWS, foram encontradas dificuldades para concluir
-a configuração e a publicação do ambiente. Como a mensagem exata da falha não
-foi preservada, não foi confirmada uma causa técnica específica. O erro
-`OptInRequired` é tratado no guia como uma possibilidade de diagnóstico, não
-como uma causa comprovada desta entrega.
+Enquanto não houver banco configurado, a própria API pode obter os clientes
+do CSV distribuído com a aplicação. A tela continua utilizando a FastAPI como
+fonte. Quando um PostgreSQL está configurado, uma falha de conexão é informada
+em vez de substituir a base por outro arquivo.
 
-O template EC2 e os scripts AWS foram mantidos para uma implantação futura.
-A alternativa Render utiliza outra forma de hospedagem e não representa uma
-EC2 em funcionamento.
+Foi mantida uma distinção entre os dois ambientes: os contêineres do computador
+dependem dele ligado, enquanto os serviços publicados executam nos servidores
+do Render e do Streamlit Cloud. As condições do plano contratado continuam
+valendo, incluindo os limites da modalidade gratuita.
+[Condições do plano gratuito do Render](https://render.com/docs/free)
 
-## Hospedagem: o que foi realizado e o que está preparado
+## Acessar os arquivos e continuar o projeto
 
-| Parte | Situação |
-| --- | --- |
-| Painel Streamlit | Foi publicado no endereço `mlopsjose.streamlit.app`. |
-| API FastAPI | Foi adotada a hospedagem no Render; as novas versões dependem da conclusão do deploy após o envio ao GitHub. |
-| Docker com PostgreSQL | Foi implementado e validado localmente, com volume persistente e usuário de leitura. |
-| PostgreSQL no Render | Foram preparados o importador e o roteiro de configuração. A criação do banco e suas credenciais são etapas da conta Render. |
-| AWS EC2 | Foram preparados o template e o bootstrap. A implantação na conta AWS não foi concluída. |
+O código da aplicação está em `src/churn/`, e o modelo publicado está em
+`deployment/`. Os resultados das avaliações ficam em `reports/`; os scripts
+de importação, verificação e empacotamento ficam em `scripts/`.
 
-O Docker executado no computador para quando o PC é desligado. Já os serviços
-publicados no Render e no Streamlit Cloud executam nos servidores dessas
-plataformas. O acesso online não depende do computador local ligado.
-
-No plano gratuito, o serviço web do Render pode suspender após 15 minutos sem
-tráfego e demorar para responder ao primeiro acesso seguinte. O PostgreSQL
-gratuito do Render expira após 30 dias. Portanto, o plano gratuito foi
-considerado para demonstração, com atenção a esses limites.
-[Limitações oficiais](https://render.com/docs/free)
-
-## Executar em outro computador
-
-Foi utilizado Python 3.13. Para iniciar uma instalação nova, são necessários
-Git, uv e Docker com Compose v2. Execute os comandos na pasta do repositório:
+Foram realizados testes da preparação dos dados, do modelo, da FastAPI e da
+interface. A integração local também foi conferida com o PostgreSQL, incluindo
+a carga da carteira e o bloqueio de escrita pela conta da API. A suíte pode
+ser executada na pasta do projeto com:
 
 ```powershell
-git clone https://github.com/Pedro-M-R/ml-ops.git
-cd ml-ops
 uv sync --locked --python 3.13
-uv run python scripts/preparar_postgres.py
-docker compose -p churn -f docker-compose.yml -f compose.postgres.yml up -d --build --wait --wait-timeout 300 api dashboard
-```
-
-O script gera senhas locais, sem exibi-las, e o banco importa o CSV na primeira
-inicialização do volume. O modelo selecionado já acompanha o repositório.
-
-- Painel: [http://127.0.0.1:8501](http://127.0.0.1:8501)
-- Documentação da API: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
-- Verificação da aplicação e do banco: [http://127.0.0.1:8000/ready](http://127.0.0.1:8000/ready)
-
-Se a aplicação já estiver rodando no Docker Desktop, deve ser utilizado o grupo
-existente. Os comandos acima são para uma instalação nova; duas instalações
-não podem ocupar as mesmas portas ao mesmo tempo.
-
-Para encerrar a instalação criada com `-p churn`, preservando o banco:
-
-```powershell
-docker compose -p churn -f docker-compose.yml -f compose.postgres.yml down
-```
-
-O volume mantém os registros entre recriações dos contêineres. A opção `down -v`
-remove os volumes e seus dados; ela não faz parte do procedimento normal de atualização.
-
-## Consultas disponíveis na API
-
-| Método e rota | Finalidade |
-| --- | --- |
-| `GET /health` e `GET /ping` | Conferir se a API iniciou e carregou o modelo. |
-| `GET /ready` | Conferir o modelo e, quando configurado, o PostgreSQL com clientes. |
-| `GET /customers` | Consultar clientes em páginas de até 1.000 registros. |
-| `GET /customers/{customer_id}` | Buscar o perfil de um cliente pelo código. |
-| `POST /predict` | Receber clientes e devolver probabilidades e classes. |
-| `POST /invocations` | Realizar inferência em formatos compatíveis com o MLflow. |
-| `GET /docs` | Abrir a documentação interativa dos contratos da API. |
-
-## Conferir a implementação
-
-Foi preparada uma suíte de testes para validação de dados, pré-processamento,
-treinamento, API e interface. Também foram realizadas verificações com Docker
-e PostgreSQL, incluindo a importação dos 7.043 clientes, a preservação dos dados
-e a restrição de escrita do usuário da API.
-
-```powershell
 uv run pytest -q
-docker compose -p churn -f docker-compose.yml -f compose.postgres.yml exec -T api python scripts/verificar_postgres.py
 ```
 
-O segundo comando deve utilizar o mesmo nome de projeto usado ao subir os
-serviços. Os testes locais não substituem a conferência do deploy na plataforma.
+As instruções de instalação e publicação foram separadas por necessidade:
 
-## Organização e guias
-
-| Caminho | Conteúdo |
-| --- | --- |
-| `src/churn/` | Preparação dos dados, treinamento, API e painel. |
-| `frontend/` | Entrada da interface publicada e cópia da base para distribuição. |
-| `deployment/` | Pipeline e modelo selecionados para inferência. |
-| `deploy/postgres/` | Scripts de inicialização do PostgreSQL em Docker. |
-| `aws/` | Template CloudFormation e inicialização da EC2. |
-| `scripts/` | Importação, empacotamento, verificação e publicação. |
-| `reports/` | Métricas e registros das verificações realizadas. |
-| `tests/` | Testes automatizados do projeto. |
-
-- [Relato explicativo da implementação e da escolha do Render](docs/relato_projeto.md)
-- [Publicação da API e do painel](docs/deploy_render_streamlit.md)
-- [PostgreSQL no Render](docs/deploy_render_postgres.md)
-- [Docker e PostgreSQL local](docs/postgres.md)
-- [Alternativa AWS e diagnóstico de configuração](docs/deploy_aws.md)
-- [Execução do treinamento e da API](docs/guia_execucao.md)
-- [Histórico dos exercícios anteriores](docs/historico_exercicios.md)
+- [Iniciar o ambiente Docker com PostgreSQL](docs/postgres.md)
+- [Publicar a API e conectar o painel](docs/deploy_render_streamlit.md)
+- [Preparar o banco no Render](docs/deploy_render_postgres.md)
+- [Consultar a alternativa de implantação AWS](docs/deploy_aws.md)
+- [Ler o registro explicativo do desenvolvimento](docs/relato_projeto.md)
+- [Consultar os exercícios anteriores](docs/historico_exercicios.md)
