@@ -6,7 +6,7 @@ Foi realizado o desenvolvimento de uma aplicação para consultar a tendência
 de permanência de clientes em um serviço. O trabalho reuniu preparação de dados,
 comparação de modelos e publicação de uma interface para apresentar as previsões.
 
-**[Abrir o Permanência no Docker — http://127.0.0.1:8501](http://127.0.0.1:8501)**
+**[Acessar o front-end](http://127.0.0.1:8501)**
 
 Esse endereço abre a aplicação local. Para utilizá-lo, o Docker e os
 contêineres do projeto precisam estar rodando no computador em que o link
