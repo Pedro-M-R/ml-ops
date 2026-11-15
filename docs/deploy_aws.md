@@ -141,6 +141,32 @@ conforme o uso. Consulte os valores da região na sua conta. Não há promessa d
 enquadramento no Free Tier. Para uma demonstração pequena é possível passar
 `--instance-type t3.small`, com menos memória para build e execução.
 
+### Contas no plano gratuito da AWS
+
+O padrão `t3.medium` não é elegível ao Free Tier e pode ser recusado em uma conta
+restrita ao plano gratuito. Antes de publicar, consulte as opções da região:
+
+```bash
+aws ec2 describe-instance-types --region us-east-2 \
+  --filters "Name=free-tier-eligible,Values=true" "Name=processor-info.supported-architecture,Values=x86_64" \
+  --query 'InstanceTypes[].{Tipo:InstanceType,MemoriaMiB:MemoryInfo.SizeInMiB}' \
+  --output table --no-cli-pager
+```
+
+Quando aparecer como elegível, `--instance-type c7i-flex.large` mantém 4 GiB de
+memória. Também foi permitido `m7i-flex.large`, com 8 GiB. A seleção depende das
+opções retornadas pela AWS e do orçamento; elegibilidade não significa execução
+gratuita por tempo ilimitado. Acompanhe os créditos e a validade no painel da conta.
+Os tipos ARM não foram incluídos porque a AMI e o bootstrap deste deploy são x86_64.
+
+Se a criação falhar por elegibilidade, corrija o tipo e aguarde a stack chegar a
+`ROLLBACK_COMPLETE`. Como essa tentativa não criou a aplicação, exclua apenas a
+stack dessa tentativa e aguarde `stack-delete-complete` antes de reutilizar seu nome.
+O bucket privado de pacotes fica fora da stack e pode ser reutilizado. Uma stack
+que já tenha hospedado dados exige backup e análise antes da exclusão.
+
+Referência: [Free Tier para EC2](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-free-tier-usage.html).
+
 ### Passos no Windows
 
 1. Instale a [AWS CLI v2 para o usuário atual](https://awscli.amazonaws.com/AWSCLIV2-User.msi).

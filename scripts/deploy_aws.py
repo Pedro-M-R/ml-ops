@@ -21,7 +21,12 @@ def main():
     parser.add_argument("--region", default="sa-east-1")
     parser.add_argument("--stack-name", default="churn-demo")
     parser.add_argument("--allowed-cidr", help="IPv4/CIDR autorizado, normalmente seu IP público/32.")
-    parser.add_argument("--instance-type", choices=["t3.small", "t3.medium", "t3.large"], default="t3.medium")
+    parser.add_argument(
+        "--instance-type",
+        choices=["t3.small", "t3.medium", "t3.large", "c7i-flex.large", "m7i-flex.large"],
+        default="t3.medium",
+        help="Tipo x86_64. Confira a elegibilidade Free Tier na região e na conta antes de publicar.",
+    )
     parser.add_argument("--profile", help="Perfil já autenticado da AWS CLI.")
     parser.add_argument("--prepare-only", action="store_true", help="Gera o pacote sem acessar ou criar recursos AWS.")
     args = parser.parse_args()
