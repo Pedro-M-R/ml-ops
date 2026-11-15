@@ -72,9 +72,10 @@ projeto, foi possível aproveitar a estrutura preparada para a API e o modelo
 exportado. [Documentação da plataforma](https://render.com/docs/web-services)
 
 A escolha reduziu a necessidade de administrar um servidor EC2 para apresentar
-a aplicação. A interface foi mantida no Streamlit Community Cloud, no endereço
-[mlopsjose.streamlit.app](https://mlopsjose.streamlit.app/), enquanto o Render
-foi adotado para o serviço de previsão.
+a aplicação. A interface Streamlit também foi publicada no Render, no endereço
+[permanencia-jose.onrender.com](https://permanencia-jose.onrender.com/), em um serviço
+separado da FastAPI. O painel utiliza a URL pública da API para consultar os clientes
+e solicitar as previsões.
 
 Os arquivos AWS foram preservados como possibilidade de continuidade. O
 PostgreSQL gerenciado do Render também recebeu um roteiro de configuração e

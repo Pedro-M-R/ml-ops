@@ -244,7 +244,9 @@ def main():
     st.set_page_config(page_title="Permanência | Análise de clientes", page_icon="🌿", layout="wide")
     st.markdown(APP_STYLE, unsafe_allow_html=True)
     try:
-        frame = load_customer_base()
+        message = "Carregando os clientes pela FastAPI. O primeiro acesso pode demorar..." if uses_api_customers() else "Carregando os clientes..."
+        with st.spinner(message):
+            frame = load_customer_base()
         if "customerID" not in frame or frame.customerID.astype("string").str.strip().eq("").any() or frame.customerID.isna().any():
             raise DashboardError("A base precisa ter um customerID preenchido para cada cliente.")
     except DashboardError as exc:

@@ -122,6 +122,9 @@ def test_dashboard_reads_paginated_api_without_csv(monkeypatch):
     offsets = []
 
     def handler(request):
+        # Reproduz o orçamento de espera necessário para a retomada observada no Render.
+        if request.extensions["timeout"]["read"] < 55:
+            raise httpx.ReadTimeout("API starting", request=request)
         offset = int(request.url.params["offset"])
         offsets.append(offset)
         return httpx.Response(200, json={"total": 2, "customers": [
@@ -134,6 +137,20 @@ def test_dashboard_reads_paginated_api_without_csv(monkeypatch):
     assert frame.customerID.tolist() == ["000", "001"]
     assert offsets == [0, 1]
     assert pd.isna(frame.TotalCharges).all()
+
+
+def test_customer_timeout_explains_api_startup_without_exposing_details(monkeypatch):
+    monkeypatch.setenv("CHURN_CUSTOMER_SOURCE", "api")
+    client_type = httpx.Client
+
+    def unavailable(request):
+        raise httpx.ReadTimeout("private service details", request=request)
+
+    transport = httpx.MockTransport(unavailable)
+    monkeypatch.setattr(dashboard.httpx, "Client", lambda **kwargs: client_type(transport=transport, **kwargs))
+    with pytest.raises(dashboard.DashboardError, match="pode estar iniciando") as error:
+        dashboard.load_customer_base()
+    assert "private service details" not in str(error.value)
 
 
 @pytest.mark.parametrize("body", [

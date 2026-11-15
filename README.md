@@ -6,10 +6,10 @@ Foi realizado o desenvolvimento de uma aplicação para consultar a tendência
 de permanência de clientes em um serviço. O trabalho reuniu preparação de dados,
 comparação de modelos e publicação de uma interface para apresentar as previsões.
 
-**[Acessar o front-end](https://mlopsjose.streamlit.app/)**
+**[Acessar o front-end](https://permanencia-jose.onrender.com/)**
 
 Esse é o endereço público do painel e pode ser compartilhado com outras
-pessoas. A interface está hospedada no Streamlit Community Cloud e não depende
+pessoas. A interface está hospedada no Render e não depende
 do Docker local para ser acessada. O endereço `127.0.0.1:8501` fica reservado
 à execução no próprio computador.
 
@@ -24,8 +24,8 @@ Executar o modelo no computador foi uma etapa do desenvolvimento. Para permitir
 o acesso à demonstração sem manter esse computador ligado, foi realizada a
 separação entre o ambiente local e os serviços de hospedagem.
 
-Foi utilizado o **Render para a API** e o **Streamlit Community Cloud para o
-painel**. O Render é uma plataforma que disponibiliza aplicações em servidores
+Foi utilizado o **Render para hospedar a API e o painel Streamlit em serviços
+separados**. O Render é uma plataforma que disponibiliza aplicações em servidores
 na nuvem. No projeto, ele permite executar a FastAPI a partir da estrutura
 Docker já preparada, oferecendo um endereço para receber as consultas.
 [Conhecer o Render](https://render.com/docs/web-services)
@@ -105,7 +105,7 @@ em vez de substituir a base por outro arquivo.
 
 Foi mantida uma distinção entre os dois ambientes: os contêineres do computador
 dependem dele ligado, enquanto os serviços publicados executam nos servidores
-do Render e do Streamlit Cloud. As condições do plano contratado continuam
+do Render. As condições do plano contratado continuam
 valendo, incluindo os limites da modalidade gratuita.
 [Condições do plano gratuito do Render](https://render.com/docs/free)
 

@@ -52,7 +52,8 @@ def _load_api_customers():
     """A tela recebe os registros pela API e nunca as credenciais do banco."""
     rows = []
     try:
-        with httpx.Client(base_url=api_url(), timeout=15.0) as client:
+        # A API no plano Free pode levar cerca de um minuto para retomar.
+        with httpx.Client(base_url=api_url(), timeout=httpx.Timeout(120.0, connect=10.0)) as client:
             while True:
                 response = client.get("/customers", params={"limit": BATCH_SIZE, "offset": len(rows)})
                 response.raise_for_status()
@@ -71,6 +72,10 @@ def _load_api_customers():
         if frame.customerID.isna().any() or frame.customerID.str.strip().eq("").any() or frame.customerID.duplicated().any():
             raise ValueError("Identificadores inválidos")
         return frame
+    except httpx.TimeoutException as exc:
+        raise DashboardError(
+            "A FastAPI ainda não respondeu. No primeiro acesso ela pode estar iniciando; aguarde e recarregue a página."
+        ) from exc
     except (httpx.HTTPError, ValueError, KeyError, TypeError, AttributeError) as exc:
         raise DashboardError("Não foi possível consultar os clientes pela FastAPI. Confira o serviço configurado.") from exc
 

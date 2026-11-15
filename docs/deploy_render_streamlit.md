@@ -190,7 +190,8 @@ pelos serviços publicados. Na nuvem, não use `localhost`, `127.0.0.1` ou
 O plano gratuito do Render tem 512 MB de RAM e suspende após 15 minutos sem
 tráfego de entrada. A primeira consulta após esse período pode demorar cerca de
 um minuto, mais o carregamento do modelo. Abra `/health`, aguarde e consulte a
-tela novamente. O painel permite até 120 segundos para cada requisição de previsão.
+tela novamente. O painel permite até 120 segundos de espera tanto na consulta
+dos clientes quanto nas requisições de previsão e mostra uma indicação de carregamento.
 
 O limite de RAM pode não ser suficiente para o MLflow e as dependências durante
 a execução. Se os logs indicarem encerramento por memória, será necessário
