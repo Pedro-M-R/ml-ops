@@ -49,6 +49,67 @@ def test_fastapi_serves_csv_when_database_is_not_configured(api, monkeypatch, tm
     assert api.get("/customers").status_code == 503
 
 
+def test_csv_is_prepared_once_and_refreshed_when_the_file_changes(api, monkeypatch, tmp_path):
+    path = tmp_path / "customers.csv"
+    pd.DataFrame([{"customerID": "001", **dashboard.EXAMPLE_CUSTOMER}]).to_csv(path, index=False)
+    monkeypatch.delenv("CHURN_DB_HOST", raising=False)
+    monkeypatch.setenv("CHURN_DATA_PATH", str(path))
+    read_csv = pd.read_csv
+    reads = []
+
+    def counted_read(*args, **kwargs):
+        reads.append(args[0])
+        return read_csv(*args, **kwargs)
+
+    monkeypatch.setattr(store.pd, "read_csv", counted_read)
+    assert api.get("/customers?limit=1").json()["total"] == 1
+    assert api.get("/customers/001").status_code == 200
+    assert api.get("/customers?limit=1").json()["total"] == 1
+    assert len(reads) == 1
+    pd.DataFrame([
+        {"customerID": "001", **dashboard.EXAMPLE_CUSTOMER},
+        {"customerID": "002", **dashboard.EXAMPLE_CUSTOMER},
+    ]).to_csv(path, index=False)
+    assert api.get("/customers?limit=1").json()["total"] == 2
+    assert api.get("/customers/002").status_code == 200
+    assert len(reads) == 2
+
+
+def test_preview_fetches_only_examples_and_keeps_total(monkeypatch):
+    client_type = httpx.Client
+    requests = []
+
+    def handler(request):
+        requests.append(request)
+        assert request.url.params["limit"] == "4"
+        return httpx.Response(200, json={"total": 7043, "customers": [
+            {"customerID": "001", **dashboard.EXAMPLE_CUSTOMER},
+        ]})
+
+    transport = httpx.MockTransport(handler)
+    monkeypatch.setattr(dashboard.httpx, "Client", lambda **kwargs: client_type(transport=transport, **kwargs))
+    frame = dashboard.load_customer_preview()
+    assert frame.attrs["total_customers"] == 7043
+    assert frame.customerID.tolist() == ["001"]
+    assert len(requests) == 1
+
+
+def test_individual_lookup_uses_api_for_ids_outside_preview(monkeypatch):
+    monkeypatch.setenv("CHURN_CUSTOMER_SOURCE", "api")
+    client_type = httpx.Client
+    paths = []
+
+    def handler(request):
+        paths.append(request.url.path)
+        return httpx.Response(200, json={"customerID": "099", **dashboard.EXAMPLE_CUSTOMER})
+
+    transport = httpx.MockTransport(handler)
+    monkeypatch.setattr(dashboard.httpx, "Client", lambda **kwargs: client_type(transport=transport, **kwargs))
+    result = dashboard.customer_from_id(pd.DataFrame(), " 099 ")
+    assert result["customerID"] == "099"
+    assert paths == ["/customers/099"]
+
+
 def test_database_failure_is_sanitized_and_affects_readiness(api, monkeypatch):
     monkeypatch.setenv("CHURN_DB_HOST", "postgres")
 

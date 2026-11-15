@@ -2,7 +2,9 @@
 
 import os
 from contextlib import contextmanager
+from functools import lru_cache
 from pathlib import Path
+from threading import Lock
 
 import psycopg
 import pandas as pd
@@ -13,20 +15,34 @@ class CustomerStoreUnavailable(Exception):
     pass
 
 
-def _csv_customers():
-    """Sem banco configurado, o CSV é lido no backend e entregue pela FastAPI."""
-    from churn.api import CustomerInput
-    from churn.config import PROJECT_ROOT
-    from churn.dashboard_client import DashboardError, customers_from_frame
+_csv_lock = Lock()
 
-    path = Path(os.environ.get("CHURN_DATA_PATH") or PROJECT_ROOT / "frontend/data/churn.csv")
+
+@lru_cache(maxsize=1)
+def _read_csv_dataset(path: Path, mtime_ns: int, size: int):
+    """Prepara o CSV uma vez; modificação ou substituição do arquivo invalida a cópia."""
+    from churn.api import CustomerInput
+    from churn.dashboard_client import customers_from_frame
+
+    frame = pd.read_csv(path, dtype=str, keep_default_na=False, encoding="utf-8-sig", nrows=50_001)
+    rows = customers_from_frame(frame)
+    ids = [str(row.get("customerID") or "").casefold() for row in rows]
+    if not all(ids) or len(set(ids)) != len(ids):
+        raise ValueError("Identificadores inválidos.")
+    customers = tuple(sorted((CustomerInput.model_validate(row) for row in rows), key=lambda row: row.customerID))
+    return customers, {row.customerID.casefold(): row for row in customers}
+
+
+def _csv_dataset():
+    from churn.config import PROJECT_ROOT
+    from churn.dashboard_client import DashboardError
+
+    path = Path(os.environ.get("CHURN_DATA_PATH") or PROJECT_ROOT / "frontend/data/churn.csv").resolve()
     try:
-        frame = pd.read_csv(path, dtype=str, keep_default_na=False, encoding="utf-8-sig", nrows=50_001)
-        rows = customers_from_frame(frame)
-        ids = [str(row.get("customerID") or "").casefold() for row in rows]
-        if not all(ids) or len(set(ids)) != len(ids):
-            raise ValueError("Identificadores inválidos.")
-        return sorted((CustomerInput.model_validate(row) for row in rows), key=lambda row: row.customerID)
+        stamp = path.stat()
+        # Evita preparar o mesmo CSV em paralelo na primeira requisição.
+        with _csv_lock:
+            return _read_csv_dataset(path, stamp.st_mtime_ns, stamp.st_size)
     except (OSError, ValueError, DashboardError) as exc:
         raise CustomerStoreUnavailable("Base de clientes indisponível.") from exc
 
@@ -63,8 +79,8 @@ def find_customer(customer_id: str):
     from churn.api import CustomerInput
 
     if not os.environ.get("CHURN_DB_HOST"):
-        code = customer_id.strip().casefold()
-        return next((row for row in _csv_customers() if row.customerID.casefold() == code), None)
+        _, by_id = _csv_dataset()
+        return by_id.get(customer_id.strip().casefold())
     with connection() as conn:
         row = conn.execute(
             sql.SQL('SELECT {} FROM public.customers WHERE lower("customerID") = lower(%s)').format(_columns()),
@@ -77,7 +93,7 @@ def list_customers(limit: int, offset: int):
     from churn.api import CustomerInput
 
     if not os.environ.get("CHURN_DB_HOST"):
-        rows = _csv_customers()
+        rows, _ = _csv_dataset()
         return {"total": len(rows), "customers": rows[offset:offset + limit]}
     with connection() as conn:
         # Uma transação/snapshot mantém contagem e página coerentes.

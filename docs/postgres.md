@@ -67,9 +67,16 @@ Sem o overlay, `docker compose up --build -d api dashboard` também usa a FastAP
 nesse caso é a API que lê o CSV incluído na imagem. Com o overlay, a API consulta
 o PostgreSQL. A tela mostra **Fonte: FastAPI** em ambos os casos.
 A leitura direta do CSV na tela é apenas um modo legado, selecionado explicitamente
-com `CHURN_CUSTOMER_SOURCE=csv`. A carteira completa é recebida em páginas de até 1.000 clientes,
-com limite de 50.000, para manter a consulta individual e a classificação em lote
-já existentes no painel.
+com `CHURN_CUSTOMER_SOURCE=csv`. Ao abrir o painel, são recebidos apenas quatro
+clientes de exemplo e a contagem total. A consulta individual busca o cadastro
+solicitado pela API. A carteira completa só é recebida ao classificar toda a base,
+em páginas de até 1.000 clientes, com limite de 50.000 registros.
+
+Os exemplos e a contagem são reaproveitados por até 60 segundos na sessão do
+usuário; o estado de saúde, por até 30 segundos. Cada consulta solicita novamente
+o cliente e uma previsão à FastAPI. No backend sem PostgreSQL, o CSV é preparado
+uma vez em memória e novamente quando o arquivo muda. Consultas ao PostgreSQL
+continuam lendo o banco, sem esse cache de registros.
 
 ## Senhas, carga inicial e persistência
 

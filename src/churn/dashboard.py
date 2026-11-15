@@ -6,13 +6,14 @@ import subprocess
 import sys
 from html import escape
 from pathlib import Path
+from time import monotonic
 
 import pandas as pd
 import streamlit as st
 
 from churn.dashboard_client import (
     DashboardError, check_health, customer_from_id, customers_from_frame,
-    load_customer_base, predict_customers, uses_api_customers,
+    api_url, load_customer_base, load_customer_preview, predict_customers, uses_api_customers,
 )
 
 THRESHOLD = 0.5
@@ -135,6 +136,22 @@ def select_example(customer_id):
     st.session_state["pending_customer"] = customer_id
 
 
+def _session_api_value(key, ttl, loader):
+    endpoint = api_url()
+    cached = st.session_state.get(key)
+    if cached and cached["endpoint"] == endpoint and monotonic() - cached["loaded_at"] < ttl and cached["value"] is not False:
+        return cached["value"]
+    value = loader()
+    st.session_state[key] = {"endpoint": endpoint, "loaded_at": monotonic(), "value": value}
+    return value
+
+
+def load_display_customers():
+    if uses_api_customers():
+        return _session_api_value("customer_preview", 60, load_customer_preview)
+    return load_customer_base()
+
+
 def show_prediction(result, customer):
     row = result.iloc[0]
     prediction = int(row.churn_prediction)
@@ -220,12 +237,14 @@ def lookup(frame):
 
 def portfolio(frame):
     with st.expander("Consultar a base completa"):
-        st.caption(f"Classifique os {len(frame):,} clientes da base com o mesmo modelo.")
+        total = frame.attrs.get("total_customers", len(frame))
+        st.caption(f"Classifique os {total:,} clientes da base com o mesmo modelo.")
         if st.button("Classificar toda a base", key="classify_base"):
             st.session_state.pop("portfolio_prediction", None)
             try:
                 with st.spinner("Analisando os clientes da base..."):
-                    result = predict_customers(customers_from_frame(frame), THRESHOLD)
+                    full_frame = load_customer_base() if uses_api_customers() else frame
+                    result = predict_customers(customers_from_frame(full_frame), THRESHOLD)
                 st.session_state["portfolio_prediction"] = result
             except DashboardError as exc:
                 st.error(str(exc))
@@ -246,16 +265,16 @@ def main():
     try:
         message = "Carregando os clientes pela FastAPI. O primeiro acesso pode demorar..." if uses_api_customers() else "Carregando os clientes..."
         with st.spinner(message):
-            frame = load_customer_base()
+            frame = load_display_customers()
         if "customerID" not in frame or frame.customerID.astype("string").str.strip().eq("").any() or frame.customerID.isna().any():
             raise DashboardError("A base precisa ter um customerID preenchido para cada cliente.")
     except DashboardError as exc:
         st.error(str(exc))
         return
-    connected = check_health()
+    connected = _session_api_value("api_health", 30, check_health) if uses_api_customers() else check_health()
     source = "FastAPI" if uses_api_customers() else "churn.csv"
     status = "Modelo disponível" if connected else "Modelo iniciando ou indisponível"
-    count = f"{len(frame):,}".replace(",", ".")
+    count = f"{frame.attrs.get('total_customers', len(frame)):,}".replace(",", ".")
     st.markdown(f'''<div class="app-bar"><div class="wordmark">
         <span class="brand-symbol" aria-hidden="true">p</span><div><div class="brand-name">permanência</div>
         <div class="brand-subtitle">Análise de clientes</div></div></div>

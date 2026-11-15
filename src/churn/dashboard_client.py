@@ -3,6 +3,7 @@
 import math
 import os
 from pathlib import Path
+from urllib.parse import quote
 
 import httpx
 import pandas as pd
@@ -48,29 +49,36 @@ def load_customer_base():
     return frame
 
 
-def _load_api_customers():
+def load_customer_preview():
+    """Recebe somente quatro exemplos e a contagem, sem baixar a carteira inteira."""
+    return _load_api_customers(page_size=4, preview=True)
+
+
+def _load_api_customers(page_size=None, preview=False):
     """A tela recebe os registros pela API e nunca as credenciais do banco."""
     rows = []
+    page_size = page_size or BATCH_SIZE
     try:
         # A API no plano Free pode levar cerca de um minuto para retomar.
         with httpx.Client(base_url=api_url(), timeout=httpx.Timeout(120.0, connect=10.0)) as client:
             while True:
-                response = client.get("/customers", params={"limit": BATCH_SIZE, "offset": len(rows)})
+                response = client.get("/customers", params={"limit": page_size, "offset": len(rows)})
                 response.raise_for_status()
                 page = response.json()
                 batch = page["customers"]
                 total = page["total"]
                 if not isinstance(batch, list) or not isinstance(total, int) or not 1 <= total <= MAX_CSV_ROWS:
                     raise ValueError("Base fora do limite")
-                if not batch or len(batch) > BATCH_SIZE or len(rows) + len(batch) > total:
+                if not batch or len(batch) > page_size or len(rows) + len(batch) > total:
                     raise ValueError("Página inválida")
                 rows.extend(batch)
-                if len(rows) == total:
+                if preview or len(rows) == total:
                     break
         frame = pd.DataFrame(rows)
         customers_from_frame(frame)
         if frame.customerID.isna().any() or frame.customerID.str.strip().eq("").any() or frame.customerID.duplicated().any():
             raise ValueError("Identificadores inválidos")
+        frame.attrs["total_customers"] = total
         return frame
     except httpx.TimeoutException as exc:
         raise DashboardError(
@@ -85,6 +93,8 @@ def customer_from_id(frame: pd.DataFrame, customer_id: str):
     code = customer_id.strip().casefold()
     if not code:
         raise DashboardError("Informe o código do cliente para consultar.")
+    if uses_api_customers():
+        return _customer_from_api(code)
     if "customerID" not in frame:
         raise DashboardError("A base churn.csv precisa da coluna customerID para localizar os clientes.")
     matches = frame.loc[frame.customerID.astype("string").str.strip().str.casefold().eq(code).fillna(False)]
@@ -96,8 +106,25 @@ def customer_from_id(frame: pd.DataFrame, customer_id: str):
     return customers_from_frame(matches)[0]
 
 
+def _customer_from_api(code):
+    try:
+        with httpx.Client(base_url=api_url(), timeout=httpx.Timeout(120.0, connect=10.0)) as client:
+            response = client.get("/customers/" + quote(code, safe=""))
+            if response.status_code == 404:
+                raise DashboardError("Cliente não encontrado na base fornecida pela FastAPI. Confira o código.")
+            response.raise_for_status()
+            customer = customers_from_frame(pd.DataFrame([response.json()]))[0]
+            if str(customer.get("customerID") or "").casefold() != code:
+                raise ValueError("Identificador divergente")
+            return customer
+    except httpx.TimeoutException as exc:
+        raise DashboardError("A FastAPI demorou para localizar o cliente. Aguarde e tente novamente.") from exc
+    except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
+        raise DashboardError("Não foi possível localizar o cliente pela FastAPI. Tente novamente.") from exc
+
+
 def api_url():
-    return os.environ.get("CHURN_API_URL", "http://127.0.0.1:8000").rstrip("/")
+    return os.environ.get("CHURN_API_URL", "http://127.0.0.1:8000").strip().rstrip("/")
 
 
 def check_health():

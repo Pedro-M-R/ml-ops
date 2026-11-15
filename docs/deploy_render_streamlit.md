@@ -193,6 +193,14 @@ um minuto, mais o carregamento do modelo. Abra `/health`, aguarde e consulte a
 tela novamente. O painel permite até 120 segundos de espera tanto na consulta
 dos clientes quanto nas requisições de previsão e mostra uma indicação de carregamento.
 
+Para reduzir a demora nas consultas seguintes, a abertura da tela recebe apenas
+quatro exemplos e a contagem da carteira. Esses dados são reaproveitados por um
+minuto na sessão. Consultar um código busca somente esse cliente e sua previsão;
+a base completa só é transferida ao clicar em **Classificar toda a base**.
+Na API que utiliza CSV, o arquivo validado fica em memória até uma alteração
+no próprio arquivo ou um reinício do processo. As previsões continuam sendo
+calculadas pela FastAPI a cada solicitação.
+
 O limite de RAM pode não ser suficiente para o MLflow e as dependências durante
 a execução. Se os logs indicarem encerramento por memória, será necessário
 aumentar o plano ou preparar uma API com dependências menores. A configuração

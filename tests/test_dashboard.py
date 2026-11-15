@@ -254,3 +254,61 @@ def test_form_displays_api_error_and_clears_previous_result(monkeypatch):
     assert app.error[0].value == "A API não está disponível."
     assert len(app.metric) == 0
     assert len(app.json) == 0
+
+
+def test_api_consultations_reuse_preview_and_download_full_base_only_on_request(monkeypatch):
+    from churn import dashboard
+
+    monkeypatch.setenv("CHURN_CUSTOMER_SOURCE", "api")
+    calls = {"preview": 0, "health": 0, "full": 0, "lookup": 0, "predict": []}
+    clock = [0.0]
+    monkeypatch.setattr(dashboard, "monotonic", lambda: clock[0])
+    frame = pd.DataFrame([
+        {"customerID": f"00{index}", **client.EXAMPLE_CUSTOMER} for index in range(4)
+    ])
+    frame.attrs["total_customers"] = 7043
+
+    def preview():
+        calls["preview"] += 1
+        return frame.copy()
+
+    def health():
+        calls["health"] += 1
+        return True
+
+    def full():
+        calls["full"] += 1
+        return pd.concat([frame] * 2, ignore_index=True)
+
+    def lookup(frame, code):
+        calls["lookup"] += 1
+        return {"customerID": code, **client.EXAMPLE_CUSTOMER}
+
+    def predict(customers, threshold):
+        calls["predict"].append(len(customers))
+        return pd.DataFrame([
+            {"customerID": row["customerID"], "churn_probability": 0.2, "churn_prediction": 0}
+            for row in customers
+        ])
+
+    monkeypatch.setattr(dashboard, "load_customer_preview", preview)
+    monkeypatch.setattr(dashboard, "check_health", health)
+    monkeypatch.setattr(dashboard, "load_customer_base", full)
+    monkeypatch.setattr(dashboard, "customer_from_id", lookup)
+    monkeypatch.setattr(dashboard, "predict_customers", predict)
+    app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / "frontend/streamlit_app.py")).run()
+    assert not app.exception
+    assert any("7.043" in element.value for element in app.markdown)
+    app.button(key="example_0").click().run()
+    app.button(key="example_1").click().run()
+    assert not app.exception
+    assert calls == {"preview": 1, "health": 1, "full": 0, "lookup": 2, "predict": [1, 1]}
+    app.button(key="classify_base").click().run()
+    assert calls["full"] == 1
+    assert calls["predict"][-1] == 8
+    clock[0] = 100.0
+    app.run()
+    assert calls["preview"] == 2 and calls["health"] == 2
+    monkeypatch.setenv("CHURN_API_URL", "https://other-api.example")
+    app.run()
+    assert calls["preview"] == 3 and calls["health"] == 3

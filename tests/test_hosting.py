@@ -53,6 +53,10 @@ def test_cloud_entry_uses_secrets_without_replacing_explicit_environment(monkeyp
     monkeypatch.setattr("churn.dashboard.load_customer_base", lambda: pd.DataFrame([
         {"customerID": "001", **dashboard_client.EXAMPLE_CUSTOMER},
     ]))
+    monkeypatch.setattr("churn.dashboard.load_customer_preview", lambda: pd.DataFrame([
+        {"customerID": "001", **dashboard_client.EXAMPLE_CUSTOMER},
+    ]))
+    monkeypatch.setattr("churn.dashboard.customer_from_id", lambda frame, code: {"customerID": code, **dashboard_client.EXAMPLE_CUSTOMER})
     app = AppTest.from_file(str(ROOT / "frontend/streamlit_app.py")).run(timeout=30)
     assert not app.exception
     app.button(key="example_0").click().run()
