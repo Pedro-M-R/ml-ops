@@ -6,12 +6,13 @@ Foi realizado o desenvolvimento de uma aplicação para consultar a tendência
 de permanência de clientes em um serviço. O trabalho reuniu preparação de dados,
 comparação de modelos e publicação de uma interface para apresentar as previsões.
 
-**[Acessar o front-end](https://permanencia-jose.onrender.com/)**
+**[Acessar o front-end](http://3.128.155.198:8501)**
 
-Esse é o endereço público do painel e pode ser compartilhado com outras
-pessoas. A interface está hospedada no Render e não depende
-do Docker local para ser acessada. O endereço `127.0.0.1:8501` fica reservado
-à execução no próprio computador.
+O painel está hospedado em uma máquina virtual EC2 na AWS e pode ser acessado
+por outras pessoas, inclusive fora da rede utilizada no desenvolvimento.
+A aplicação permanece disponível enquanto a EC2 estiver em funcionamento,
+independentemente do computador local. O IP pode mudar ao parar e iniciar a
+instância; nesse caso, o link precisa ser atualizado.
 
 O projeto partiu de uma base com **7.043 clientes**. A partir dos registros,
 foi preparado um modelo para estimar o churn, termo utilizado para o
@@ -24,19 +25,21 @@ Executar o modelo no computador foi uma etapa do desenvolvimento. Para permitir
 o acesso à demonstração sem manter esse computador ligado, foi realizada a
 separação entre o ambiente local e os serviços de hospedagem.
 
-Foi utilizado o **Render para hospedar a API e o painel Streamlit em serviços
-separados**. O Render é uma plataforma que disponibiliza aplicações em servidores
-na nuvem. No projeto, ele permite executar a FastAPI a partir da estrutura
-Docker já preparada, oferecendo um endereço para receber as consultas.
+Inicialmente, foi utilizado o **Render para hospedar a API e o painel Streamlit
+em serviços separados**. O Render é uma plataforma que disponibiliza aplicações
+em servidores na nuvem. Essa opção permitiu publicar o projeto enquanto a
+configuração inicial na AWS ainda não havia sido concluída.
 [Conhecer o Render](https://render.com/docs/web-services)
 
-A AWS havia sido considerada para a implantação com EC2. Entretanto, essa
-publicação não foi concluída durante a configuração do ambiente.Foi então adotado o Render para dar continuidade à publicação
-da aplicação, aproveitando o código e o modelo existentes.
+Posteriormente, foi concluída a **publicação na AWS, em uma EC2 na região Ohio**.
+Foi utilizado Docker Compose para iniciar Streamlit, FastAPI e PostgreSQL na
+mesma máquina. Na implantação, a instância `t3.medium` foi recusada por não ser
+elegível ao plano gratuito da conta. Após consultar as opções disponíveis, foi
+utilizada a `c7i-flex.large`, com 4 GiB de memória.
 
-Os arquivos destinados à AWS foram mantidos no repositório como alternativa
-futura. A hospedagem adotada para a API utiliza o Render; a criação de uma EC2
-não foi concluída nesta entrega.
+O acesso externo foi habilitado na porta 8501, permitindo compartilhar o painel
+por IP público. Os arquivos de publicação no Render foram mantidos como
+alternativa de hospedagem.
 
 ## Uma consulta com informações para interpretar
 
@@ -85,29 +88,36 @@ como percentuais de acerto. O registro completo está em
 O MLflow foi utilizado para manter os experimentos e a versão selecionada.
 O pipeline exportado acompanha o projeto, permitindo iniciar a API sem
 executar um novo treinamento a cada consulta.
+O histórico dos experimentos permanece no ambiente local; a publicação de
+um servidor MLflow na EC2 ainda não foi realizada.
 
 ## Organização da execução e dos clientes
 
-Foi preparada uma instalação local com Docker Compose, reunindo painel,
-API e PostgreSQL. O banco utiliza um volume para conservar os registros
-entre recriações dos contêineres, e a API consulta a carteira com uma conta
-somente de leitura.
+Foi utilizada a mesma organização com Docker Compose no ambiente local e na
+EC2: um contêiner para o painel, outro para a API e outro para o PostgreSQL.
+O banco utiliza um volume para conservar os registros entre recriações dos
+contêineres, e a API consulta a carteira com uma conta somente de leitura.
 
-O PostgreSQL em Docker foi implementado e validado no ambiente local. Também
-foram preparados um importador e instruções para utilizar o PostgreSQL
-gerenciado do Render. Essa opção ainda depende da criação do banco e da
-configuração das credenciais na conta de hospedagem.
+Na hospedagem AWS, os clientes são importados do CSV para o PostgreSQL na
+primeira inicialização. O painel solicita os dados à FastAPI, que consulta
+o banco pela rede interna do Docker e executa o modelo treinado.
 
-Enquanto não houver banco configurado, a própria API pode obter os clientes
-do CSV distribuído com a aplicação. A tela continua utilizando a FastAPI como
-fonte. Quando um PostgreSQL está configurado, uma falha de conexão é informada
-em vez de substituir a base por outro arquivo.
+Para a alternativa no Render, foram mantidos um importador e um guia para o
+PostgreSQL gerenciado. Sem um banco configurado, a API pode obter os clientes
+do CSV distribuído com a aplicação. Quando um PostgreSQL está configurado,
+uma falha de conexão é informada em vez de substituir a base por outro arquivo.
 
 Foi mantida uma distinção entre os dois ambientes: os contêineres do computador
-dependem dele ligado, enquanto os serviços publicados executam nos servidores
-do Render. As condições do plano contratado continuam
-valendo, incluindo os limites da modalidade gratuita.
-[Condições do plano gratuito do Render](https://render.com/docs/free)
+dependem dele ligado, enquanto os serviços publicados executam na EC2.
+A elegibilidade ao plano gratuito da AWS não representa hospedagem ilimitada;
+o consumo e a validade dos créditos precisam ser acompanhados na conta.
+
+| Componente | Situação atual |
+| --- | --- |
+| Streamlit | Painel público na EC2 |
+| FastAPI e modelo | Contêiner na mesma EC2 |
+| PostgreSQL | Contêiner na EC2, acessado internamente pela API |
+| MLflow | Histórico local; modelo selecionado exportado para a API |
 
 ## Acessar os arquivos e continuar o projeto
 
@@ -128,8 +138,8 @@ uv run pytest -q
 As instruções de instalação e publicação foram separadas por necessidade:
 
 - [Iniciar o ambiente Docker com PostgreSQL](docs/postgres.md)
-- [Publicar a API e conectar o painel](docs/deploy_render_streamlit.md)
+- [Publicar na AWS e configurar o acesso público](docs/deploy_aws.md)
+- [Consultar a alternativa de publicação no Render](docs/deploy_render_streamlit.md)
 - [Preparar o banco no Render](docs/deploy_render_postgres.md)
-- [Consultar a alternativa de implantação AWS](docs/deploy_aws.md)
 - [Ler o registro explicativo do desenvolvimento](docs/relato_projeto.md)
 - [Consultar os exercícios anteriores](docs/historico_exercicios.md)

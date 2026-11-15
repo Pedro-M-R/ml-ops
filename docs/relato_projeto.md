@@ -74,19 +74,36 @@ exportado. [Documentação da plataforma](https://render.com/docs/web-services)
 A escolha reduziu a necessidade de administrar um servidor EC2 para apresentar
 a aplicação. A interface Streamlit também foi publicada no Render, no endereço
 [permanencia-jose.onrender.com](https://permanencia-jose.onrender.com/), em um serviço
-separado da FastAPI. O painel utiliza a URL pública da API para consultar os clientes
-e solicitar as previsões.
+separado da FastAPI. Nessa configuração, o painel utilizou a URL pública da API
+para consultar os clientes e solicitar as previsões.
 
-Os arquivos AWS foram preservados como possibilidade de continuidade. O
-PostgreSQL gerenciado do Render também recebeu um roteiro de configuração e
-um importador, mas sua utilização depende da criação desse banco na conta.
-Sem um banco configurado, os clientes podem ser lidos do CSV pela própria API,
-mantendo a FastAPI como origem das consultas do painel.
+Posteriormente, foi retomada e concluída a implantação na AWS pela região Ohio
+(`us-east-2`), utilizando o CloudShell no navegador. O pacote com código, modelo
+e base foi enviado para um bucket S3 privado, e o CloudFormation criou a rede,
+as permissões e a máquina EC2.
 
-As condições dos serviços gratuitos precisam ser consideradas na manutenção
-da demonstração. O Render informa os limites de disponibilidade e de duração
-do PostgreSQL gratuito em sua
-[documentação de planos gratuitos](https://render.com/docs/free).
+Nessa implantação, a criação de uma `t3.medium` foi recusada por não atender à
+elegibilidade do plano gratuito da conta. Foram consultados os tipos disponíveis
+e selecionada a `c7i-flex.large`, com 4 GiB de memória. O script e o template
+foram ajustados para permitir essa opção.
+
+Na EC2, o Docker Compose iniciou Streamlit, FastAPI e PostgreSQL. Foi realizada
+a carga inicial dos clientes no banco, que passou a ser consultado pela API.
+O painel ficou disponível em
+[http://3.128.155.198:8501](http://3.128.155.198:8501). Inicialmente, o acesso
+estava restrito ao IP da conexão de desenvolvimento. Foi adicionada uma regra
+TCP na porta 8501 com origem `0.0.0.0/0`, e o acesso por outra rede foi confirmado.
+
+A EC2 permite manter a demonstração funcionando com o computador local
+desligado. A disponibilidade depende da instância em execução e das condições
+da conta AWS, incluindo saldo e validade dos créditos. O histórico MLflow
+permanece local; um servidor MLflow na EC2 ainda não foi publicado. O modelo
+selecionado já acompanha a API e não depende desse servidor para prever.
+
+As configurações do Render foram preservadas como alternativa de publicação.
+O PostgreSQL gerenciado dessa plataforma recebeu um roteiro e um importador.
+Sem banco configurado, a própria API pode ler o CSV, mantendo a FastAPI como
+origem das consultas do painel.
 
 ## Conferência da entrega
 

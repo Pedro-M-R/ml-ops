@@ -1,5 +1,8 @@
 # Publicar a API no Render e a tela no Streamlit Cloud
 
+Este guia foi mantido como alternativa. A demonstração atual está publicada
+na AWS, conforme o [guia da EC2](deploy_aws.md).
+
 **Para incluir o PostgreSQL na hospedagem existente**, siga primeiro
 [o roteiro de API + PostgreSQL no Render](deploy_render_postgres.md).
 O roteiro abaixo descreve a publicação inicial com carteira em CSV no backend.

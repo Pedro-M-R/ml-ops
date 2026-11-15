@@ -1,5 +1,17 @@
 # Streamlit + FastAPI + PostgreSQL na AWS
 
+## Implantação atual
+
+O painel público está disponível em [http://3.128.155.198:8501](http://3.128.155.198:8501).
+Foi utilizada uma EC2 `c7i-flex.large`, com 4 GiB de memória, na região Ohio
+(`us-east-2`), criada pela stack `permanencia-aws`. A publicação foi realizada
+pelo CloudShell com o pacote do projeto. O acesso pela rede móvel foi confirmado.
+
+Streamlit, FastAPI e PostgreSQL executam em contêineres na mesma EC2. O modelo
+exportado acompanha a API. O histórico MLflow permanece local, e seu servidor
+ainda não foi incluído nessa implantação. O IP informado pode mudar após parar
+e iniciar a instância.
+
 O deploy agora também inicia o PostgreSQL em Docker. A carteira é importada do CSV
 na primeira inicialização e consultada pelo painel através da API. Consulte
 [arquitetura, comparação com a referência e execução local](postgres.md).
@@ -8,7 +20,7 @@ O painel mostra **Fonte: FastAPI**: ele obtém os clientes e as previsões pela 
 O armazenamento fica no PostgreSQL; sem banco configurado, a API pode ler o CSV.
 
 Para hospedar sem AWS, use o [passo a passo de Render + Streamlit Cloud](deploy_render_streamlit.md).
-Para incluir o banco na hospedagem existente, use [PostgreSQL no Render](deploy_render_postgres.md).
+Para incluir o banco na alternativa de hospedagem no Render, use [PostgreSQL no Render](deploy_render_postgres.md).
 
 No modo local com CSV, o painel **Permanência** usa os clientes já existentes em `data/churn.csv`.
 No deploy EC2, esses clientes são importados no PostgreSQL na primeira inicialização.
@@ -167,6 +179,38 @@ que já tenha hospedado dados exige backup e análise antes da exclusão.
 
 Referência: [Free Tier para EC2](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-free-tier-usage.html).
 
+### Publicar pelo CloudShell no navegador
+
+Foi esse o caminho utilizado na implantação atual. Os comandos de criação abaixo
+são para uma instalação nova; para a stack existente, siga a seção de atualização.
+
+1. Gere o pacote do projeto no computador com
+   `uv run python scripts/deploy_aws.py --prepare-only`.
+2. No console AWS, selecione Ohio e abra o CloudShell. A sessão já utiliza a
+   identidade autenticada no console, sem `aws login` dentro desse terminal.
+3. Em **Ações → Upload file**, envie `dist/churn-portatil.zip`.
+4. No terminal do CloudShell, extraia e entre na pasta:
+
+   ```bash
+   unzip churn-portatil.zip
+   cd churn-portatil
+   ```
+
+5. Abra `https://checkip.amazonaws.com/` no navegador do computador e copie seu
+   IPv4. Substitua o texto no comando abaixo pelo número recebido. Consultar
+   esse endereço pelo CloudShell retornaria o IP do ambiente AWS.
+
+   ```bash
+   IP_PUBLICO="SEU_IPV4_PUBLICO"
+   python3 scripts/deploy_aws.py --region us-east-2 --stack-name permanencia-aws \
+     --instance-type c7i-flex.large --allowed-cidr "${IP_PUBLICO}/32"
+   ```
+
+6. Acompanhe a stack `permanencia-aws` no CloudFormation. Depois de
+   `CREATE_COMPLETE`, aguarde a instalação e teste o endereço de `DashboardUrl`
+   no navegador do computador autorizado. O acesso a outras redes é tratado
+   na seção de rede deste guia.
+
 ### Passos no Windows
 
 1. Instale a [AWS CLI v2 para o usuário atual](https://awscli.amazonaws.com/AWSCLIV2-User.msi).
@@ -180,12 +224,12 @@ Referência: [Free Tier para EC2](https://docs.aws.amazon.com/AWSEC2/latest/User
    `SignInLocalDevelopmentAccess`.
 
    ```powershell
-   aws login --profile faculdade --region sa-east-1
+   aws login --profile faculdade --region us-east-2
    ```
 
    Se seu acesso é por IAM Identity Center da faculdade/empresa, use esta
    alternativa em vez de `aws login`. Informe a Start URL e a região SSO dadas
-   pelo administrador, escolha a conta e a role autorizadas, e use `sa-east-1`
+   pelo administrador, escolha a conta e a role autorizadas, e use `us-east-2`
    como região padrão dos recursos. A região SSO pode ser diferente.
 
    ```powershell
@@ -196,7 +240,7 @@ Referência: [Free Tier para EC2](https://docs.aws.amazon.com/AWSEC2/latest/User
 3. Confirme a conta autenticada:
 
    ```powershell
-   aws sts get-caller-identity --profile faculdade --region sa-east-1 --no-cli-pager
+   aws sts get-caller-identity --profile faculdade --region us-east-2 --no-cli-pager
    ```
 
    Deve aparecer um JSON com `Account` e `Arn`. Isso confirma a autenticação,
@@ -216,18 +260,18 @@ Referência: [Free Tier para EC2](https://docs.aws.amazon.com/AWSEC2/latest/User
    Não é necessário instalar Docker localmente para o script de publicação:
    o build será feito na EC2.
 5. Descubra seu IPv4 público e publique. O comando de publicação cria recursos
-   pagos e usa a instância `t3.medium` por padrão:
+   e usa explicitamente a `c7i-flex.large`; confira antes a elegibilidade na conta:
 
    ```powershell
    $ipPublico = (curl.exe -4 -fsS https://checkip.amazonaws.com).Trim()
    Write-Output "Rede autorizada: ${ipPublico}/32"
-   python -m uv run python scripts/deploy_aws.py --profile faculdade --region sa-east-1 --allowed-cidr "${ipPublico}/32"
+   python -m uv run python scripts/deploy_aws.py --profile faculdade --region us-east-2 --stack-name permanencia-aws --instance-type c7i-flex.large --allowed-cidr "${ipPublico}/32"
    ```
 
    Execute a publicação somente depois de confirmar que o comando de IP retornou
    um IPv4 válido. Mantenha a mesma rede/VPN durante a publicação e o acesso.
 6. Aguarde o endereço `http://IP_DA_EC2:8501` no terminal. No console AWS, consulte
-   **CloudFormation → churn-demo → Outputs → DashboardUrl**, na região São Paulo.
+   **CloudFormation → permanencia-aws → Outputs → DashboardUrl**, na região Ohio.
    Abra esse endereço, confirme **Modelo disponível** e teste uma previsão. Após a
    implantação, a aplicação roda na EC2 independentemente do computador local.
 
@@ -235,7 +279,7 @@ Sem `--profile`, a AWS CLI usa sua cadeia normal de credenciais. Nunca coloque
 chaves AWS no código, Dockerfile ou pacote. Não é preciso informar senhas ao script.
 
 O script valida o template na AWS, cria/reutiliza um bucket privado específico
-da conta e stack, envia o ZIP com chave SHA-256 e solicita a stack `churn-demo`.
+da conta e stack, envia o ZIP com chave SHA-256 e solicita a stack indicada.
 Depois aguarda a infraestrutura e verifica `/_stcore/health` do Streamlit. O build
 na EC2 pode levar vários minutos. O endereço e o link do Session Manager são
 impressos e também aparecem em **CloudFormation → stack → Outputs**.
@@ -258,8 +302,33 @@ no script `scripts/empacotar.py`.
 
 ## Rede, HTTPS e uso
 
-Esta implantação inicial usa HTTP, sem login, restrito à rede autorizada. Use
-dados de demonstração. Para expor a usuários externos com dados reais, configure
+O script cria inicialmente uma implantação HTTP, sem login, restrita à rede
+informada em `AllowedCidr`. Na demonstração publicada, foi adicionada ao grupo
+de segurança da EC2 uma regra TCP para a porta 8501 com origem `0.0.0.0/0`.
+Essa regra permite o acesso ao painel por outras conexões de internet. API e
+PostgreSQL continuam na rede interna do Docker.
+
+Para conferir as regras pelo CloudShell:
+
+```bash
+GRUPO=$(aws cloudformation describe-stack-resource \
+  --stack-name permanencia-aws --logical-resource-id SecurityGroup \
+  --region us-east-2 --query 'StackResourceDetail.PhysicalResourceId' --output text)
+aws ec2 describe-security-groups --group-ids "$GRUPO" --region us-east-2 \
+  --query 'SecurityGroups[0].IpPermissions' --output json --no-cli-pager
+```
+
+Antes de adicionar uma regra pública, confira se o grupo está associado somente
+à EC2 da aplicação. Alterações manuais no grupo devem ser consideradas em futuras
+atualizações pelo CloudFormation, pois a regra adicional não está no template.
+Para testar outra rede, abra o endereço HTTP no celular com o Wi-Fi desligado.
+
+Quando o script é executado no CloudShell e `AllowedCidr` permite apenas o IP do
+computador, a verificação HTTP feita pelo script pode expirar. Isso não interrompe
+os contêineres na EC2. Confirme a aplicação pelo navegador autorizado e pelos logs;
+evite repetir a criação de uma stack que já chegou a `CREATE_COMPLETE`.
+
+Use dados de demonstração. Para expor a usuários externos com dados reais, configure
 um domínio, HTTPS e autenticação antes de ampliar o acesso. A aplicação não grava
 os CSVs enviados no disco, mas o processamento e os resultados ficam na memória
 da sessão do Streamlit. Não são mantidos após o encerramento da sessão.
@@ -278,7 +347,7 @@ causado pelo Streamlit, pelo IP autorizado ou pelo aviso de ambiente virtual.
 Segundo a [documentação do CloudFormation](https://docs.aws.amazon.com/AWSCloudFormation/latest/APIReference/CommonErrors.html),
 é necessário verificar a habilitação do serviço na conta.
 
-1. Abra o [CloudFormation em São Paulo](https://sa-east-1.console.aws.amazon.com/cloudformation/home?region=sa-east-1)
+1. Abra o [CloudFormation em Ohio](https://us-east-2.console.aws.amazon.com/cloudformation/home?region=us-east-2)
    com a mesma conta do perfil e confira se aparece uma solicitação de concluir
    cadastro, ativação ou verificação.
 2. Complete somente as etapas pendentes exibidas pela AWS. Confira o e-mail de
@@ -288,13 +357,13 @@ Segundo a [documentação do CloudFormation](https://docs.aws.amazon.com/AWSClou
    conforme a [documentação de criação da conta](https://docs.aws.amazon.com/accounts/latest/reference/getting-started.html).
 4. Se o cadastro já está concluído e o erro persistir, abra um chamado de
    **Account and billing support** no [AWS Support](https://console.aws.amazon.com/support/home),
-   informando serviço CloudFormation, região `sa-east-1`, operação `DescribeStacks`
+   informando serviço CloudFormation, região `us-east-2`, operação `DescribeStacks`
    e código `OptInRequired`.
 
 Antes de repetir a publicação, faça apenas esta consulta, que não cria recursos:
 
 ```powershell
-aws cloudformation list-stacks --profile faculdade --region sa-east-1 --max-items 5 --no-cli-pager
+aws cloudformation list-stacks --profile faculdade --region us-east-2 --max-items 5 --no-cli-pager
 ```
 
 Uma resposta JSON, mesmo com lista vazia, confirma que essa consulta foi liberada.
@@ -343,13 +412,13 @@ remove o disco, a rede e a role criados por ela. A exclusão é irreversível.
 O PostgreSQL também usa esse disco: faça um backup externo antes de excluir a stack.
 
 ```powershell
-aws cloudformation delete-stack --stack-name churn-demo --region sa-east-1 --profile faculdade
-aws cloudformation wait stack-delete-complete --stack-name churn-demo --region sa-east-1 --profile faculdade
+aws cloudformation delete-stack --stack-name permanencia-aws --region us-east-2 --profile faculdade
+aws cloudformation wait stack-delete-complete --stack-name permanencia-aws --region us-east-2 --profile faculdade
 ```
 
 O bucket de artefatos foi criado fora da stack e permanece. Exclua seus objetos e
 o bucket pelo console S3 quando não precisar mais deles; o nome segue o padrão
-`churn-ID_DA_CONTA-churn-demo`. Não remova buckets de outros projetos.
+`churn-ID_DA_CONTA-permanencia-aws`. Não remova buckets de outros projetos.
 
 ## Referências
 
