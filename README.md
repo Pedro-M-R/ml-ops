@@ -30,9 +30,7 @@ Docker já preparada, oferecendo um endereço para receber as consultas.
 [Conhecer o Render](https://render.com/docs/web-services)
 
 A AWS havia sido considerada para a implantação com EC2. Entretanto, essa
-publicação não foi concluída durante a configuração do ambiente. Como não foi
-preservada a mensagem da falha, não foi possível identificar com segurança sua
-causa específica. Foi então adotado o Render para dar continuidade à publicação
+publicação não foi concluída durante a configuração do ambiente.Foi então adotado o Render para dar continuidade à publicação
 da aplicação, aproveitando o código e o modelo existentes.
 
 Os arquivos destinados à AWS foram mantidos no repositório como alternativa
