@@ -1,5 +1,11 @@
 # Publicar a API no Render e a tela no Streamlit Cloud
 
+**Para incluir o PostgreSQL na hospedagem existente**, siga primeiro
+[o roteiro de API + PostgreSQL no Render](deploy_render_postgres.md).
+O roteiro abaixo descreve a publicação inicial com carteira em CSV no backend.
+A fonte do painel é a **FastAPI**: a tela consulta `/customers` e `/predict`.
+A API lê o CSV quando não há PostgreSQL configurado.
+
 Esta opção usa o repositório `https://github.com/Pedro-M-R/ml-ops` na branch
 `main`. A FastAPI e o modelo ficam no Render; o Streamlit Community Cloud
 serve a tela e consulta a API por HTTPS. Não depende da conta AWS nem dos
@@ -9,7 +15,7 @@ Os arquivos de publicação já estão preparados:
 
 | Arquivo | Função |
 | --- | --- |
-| `render.yaml` | Cria o serviço Docker `churn-api`, plano Free, com health check `/health`. |
+| `render.yaml` | Cria o serviço Docker `churn-api`, plano Free, com health check `/ready`. |
 | `Dockerfile` | Instala o projeto com `uv.lock` e copia o modelo treinado. |
 | `frontend/streamlit_app.py` | Entrada da tela no Streamlit Cloud. |
 | `frontend/requirements.txt` | Instala só Streamlit, pandas e httpx para a tela. |
@@ -104,7 +110,7 @@ Se preferir criar manualmente por **New → Web Service**, use:
 | Dockerfile Path | `./Dockerfile` |
 | Docker Build Context | `.` |
 | Docker Command | vazio; utiliza o CMD da imagem |
-| Health Check Path | `/health` |
+| Health Check Path | `/ready` |
 | Instance Type | `Free`, para tentativa inicial de demonstração |
 
 O comando `churn-serve` lê a variável `PORT` do Render e escuta em `0.0.0.0`.
@@ -172,7 +178,7 @@ Não envie `.streamlit/secrets.toml` ao GitHub; o exemplo pode ser versionado.
 2. Abra o link `streamlit.app` e confira o painel **Permanência**, com apresentação à esquerda e consulta à direita.
 3. Confira **Modelo disponível** e a contagem de clientes da base `churn.csv`.
 4. Digite um `customerID` existente e clique em **Consultar**, ou clique em um dos códigos de exemplo. O perfil é buscado automaticamente na base.
-5. Confira **SIM — tende a continuar pagando** (classe 0) ou **NÃO — tende a cancelar o serviço** (classe 1), com a probabilidade e o JSON retornados pela API.
+5. Confira **Tendência de permanência** (classe 0) ou **Tendência de cancelamento** (classe 1), as probabilidades, o limiar e o JSON retornados pela FastAPI.
 6. Em **Ver resposta original da API**, confira o JSON. Em **Consultar a base completa**, use **Classificar toda a base** para analisar os clientes e baixar o CSV.
 
 Se funcionar após desligar os servidores locais, as chamadas estão passando

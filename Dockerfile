@@ -13,6 +13,7 @@ COPY deployment/ ./deployment/
 COPY reports/selection.json ./reports/selection.json
 COPY frontend/data/ ./frontend/data/
 COPY .streamlit/ ./.streamlit/
+COPY scripts/verificar_postgres.py ./scripts/verificar_postgres.py
 
 ENV PATH="/app/.venv/bin:$PATH"
 EXPOSE 8000 8501

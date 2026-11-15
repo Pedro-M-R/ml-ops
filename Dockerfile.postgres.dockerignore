@@ -1,0 +1,4 @@
+**
+!deploy/
+!deploy/postgres/
+!deploy/postgres/**

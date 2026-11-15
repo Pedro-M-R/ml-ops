@@ -1,0 +1,53 @@
+# Acrescenta PostgreSQL ao Compose local sem alterar o modo CSV existente.
+services:
+  postgres:
+    image: churn-postgres:local
+    build:
+      context: .
+      dockerfile: Dockerfile.postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: churn
+      POSTGRES_USER: churn_admin
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_admin_password
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    secrets:
+      - db_admin_password
+      - db_reader_password
+    volumes:
+      - customer_data:/var/lib/postgresql/data
+      - ./frontend/data/churn.csv:/seed/churn.csv:ro
+    healthcheck:
+      # pg_isready sozinho não confirma que a carga inicial terminou.
+      test: ["CMD-SHELL", "PGPASSWORD=\"$$(cat /run/secrets/db_admin_password)\" psql -h 127.0.0.1 -U churn_admin -d churn -tAc 'SELECT count(*) > 0 FROM public.customers' | grep -qx t"]
+      interval: 5s
+      timeout: 5s
+      start_period: 30s
+      retries: 24
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}
+  api:
+    environment:
+      CHURN_DB_HOST: postgres
+      CHURN_DB_NAME: churn
+      CHURN_DB_USER: churn_reader
+      CHURN_DB_PASSWORD_FILE: /run/secrets/db_reader_password
+    secrets:
+      - db_reader_password
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=8)"]
+      timeout: 10s
+  dashboard:
+    environment:
+      CHURN_CUSTOMER_SOURCE: api
+secrets:
+  db_admin_password:
+    file: ./runtime/secrets/db_admin_password
+  db_reader_password:
+    file: ./runtime/secrets/db_reader_password
+volumes:
+  customer_data:

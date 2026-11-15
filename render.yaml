@@ -7,10 +7,14 @@ services:
     region: virginia
     dockerfilePath: ./Dockerfile
     dockerContext: .
-    healthCheckPath: /health
+    healthCheckPath: /ready
     autoDeployTrigger: commit
     envVars:
       - key: PORT
         value: "10000"
       - key: MLFLOW_DISABLE_AGENT_HINT
         value: "1"
+# Para conectar o PostgreSQL, configure CHURN_DB_HOST, CHURN_DB_PORT,
+# CHURN_DB_NAME, CHURN_DB_USER=churn_reader, CHURN_DB_PASSWORD e
+# CHURN_DB_SSLMODE=require no painel Environment, conforme docs/deploy_render_postgres.md.
+# A importação usa o script local; nenhuma senha administrativa vai para a API.

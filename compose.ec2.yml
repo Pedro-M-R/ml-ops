@@ -1,0 +1,9 @@
+# Utilizado após compose.postgres.yml. Somente o painel recebe tráfego externo.
+services:
+  api:
+    ports: !reset []
+  dashboard:
+    ports: !override
+      - "8501:8501"
+    environment:
+      CHURN_API_PUBLIC_URL: ""

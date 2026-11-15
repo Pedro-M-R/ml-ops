@@ -1,8 +1,17 @@
-# Streamlit + FastAPI na AWS
+# Streamlit + FastAPI + PostgreSQL na AWS
+
+O deploy agora também inicia o PostgreSQL em Docker. A carteira é importada do CSV
+na primeira inicialização e consultada pelo painel através da API. Consulte
+[arquitetura, comparação com a referência e execução local](postgres.md).
+Os três serviços ficam na mesma EC2, com banco e API na rede interna Docker.
+O painel mostra **Fonte: FastAPI**: ele obtém os clientes e as previsões pela API.
+O armazenamento fica no PostgreSQL; sem banco configurado, a API pode ler o CSV.
 
 Para hospedar sem AWS, use o [passo a passo de Render + Streamlit Cloud](deploy_render_streamlit.md).
+Para incluir o banco na hospedagem existente, use [PostgreSQL no Render](deploy_render_postgres.md).
 
-O painel **Permanência** usa os clientes já existentes em `data/churn.csv`.
+No modo local com CSV, o painel **Permanência** usa os clientes já existentes em `data/churn.csv`.
+No deploy EC2, esses clientes são importados no PostgreSQL na primeira inicialização.
 O layout tem fundo claro, tons de verde e duas colunas: apresentação e resumo
 da base à esquerda; consulta e resultado à direita. O botão **Consultar** usa
 automaticamente o perfil já cadastrado.
@@ -108,7 +117,7 @@ Para encerrar: `docker compose down`. As portas locais são 8000 e 8501.
 
 O template `aws/cloudformation.yaml` cria uma VPC, uma sub-rede pública, rota
 de internet, security group, IAM role e uma EC2 Amazon Linux 2023. A instância
-usa Docker e dois contêineres com reinício automático. A API não publica porta
+usa Docker Compose e três contêineres com reinício automático. API e banco não publicam portas
 na EC2. Só o Streamlit, na porta 8501, aceita conexões da rede IPv4/CIDR indicada.
 O acesso administrativo é pelo AWS Systems Manager Session Manager, sem chave
 SSH. O pacote com código e modelo fica em um bucket S3 privado da sua conta.
@@ -193,7 +202,7 @@ enquadramento no Free Tier. Para uma demonstração pequena é possível passar
    um IPv4 válido. Mantenha a mesma rede/VPN durante a publicação e o acesso.
 6. Aguarde o endereço `http://IP_DA_EC2:8501` no terminal. No console AWS, consulte
    **CloudFormation → churn-demo → Outputs → DashboardUrl**, na região São Paulo.
-   Abra esse endereço, confirme **API conectada** e teste uma previsão. Após a
+   Abra esse endereço, confirme **Modelo disponível** e teste uma previsão. Após a
    implantação, a aplicação roda na EC2 independentemente do computador local.
 
 Sem `--profile`, a AWS CLI usa sua cadeia normal de credenciais. Nunca coloque
@@ -206,7 +215,7 @@ na EC2 pode levar vários minutos. O endereço e o link do Session Manager são
 impressos e também aparecem em **CloudFormation → stack → Outputs**.
 
 `CREATE_COMPLETE` confirma a infraestrutura; a aplicação termina de instalar
-depois. Acesse o painel, confirme **API conectada** e faça uma análise. Se o
+depois. Acesse o painel, confirme **Modelo disponível** e faça uma análise. Se o
 comando for interrompido, consulte a stack antes de tentar novamente: recursos
 já criados podem continuar ativos e gerando cobrança.
 
@@ -273,9 +282,10 @@ Abra a EC2 pelo link do Session Manager e execute:
 
 ```bash
 sudo tail -n 100 /var/log/churn-bootstrap.log
-sudo docker ps
-sudo docker logs --tail 100 churn-api
-sudo docker logs --tail 100 churn-dashboard
+cd /opt/churn/churn-portatil
+sudo docker compose -p churn -f docker-compose.yml -f compose.postgres.yml -f compose.ec2.yml ps
+sudo docker compose -p churn -f docker-compose.yml -f compose.postgres.yml -f compose.ec2.yml logs --tail 100 postgres api dashboard
+sudo docker compose -p churn -f docker-compose.yml -f compose.postgres.yml -f compose.ec2.yml exec -T api python scripts/verificar_postgres.py
 ```
 
 Se o log ainda não existir, veja `/var/log/cloud-init-output.log`. Falha no download
@@ -295,13 +305,16 @@ sudo bash churn-portatil/aws/bootstrap.sh
 ```
 
 O bootstrap reconstrói a imagem e substitui os contêineres; há uma breve
-indisponibilidade. Para uma implantação independente, use um novo `--stack-name`
+indisponibilidade. O volume e as senhas existentes são preservados; atualizar o
+CSV do pacote não substitui os registros já carregados. Veja o procedimento de
+[backup do PostgreSQL](postgres.md#deploy-e-backup-na-ec2). Para uma implantação independente, use um novo `--stack-name`
 no script, verifique o novo endereço e exclua a stack anterior quando terminar.
 
 ## Encerrar os recursos
 
 Exclua a stack pelo CloudFormation ou com o comando abaixo. Isso encerra a EC2 e
 remove o disco, a rede e a role criados por ela. A exclusão é irreversível.
+O PostgreSQL também usa esse disco: faça um backup externo antes de excluir a stack.
 
 ```powershell
 aws cloudformation delete-stack --stack-name churn-demo --region sa-east-1 --profile faculdade
@@ -314,14 +327,10 @@ o bucket pelo console S3 quando não precisar mais deles; o nome segue o padrão
 
 ## Referências
 
-Validação desta entrega: 152 testes aprovados; formulário Streamlit exercitado
-com a API real; 7.043 clientes previstos em 8 lotes HTTP, com diferença zero em
-relação ao pipeline exportado e ordem dos IDs preservada. O relatório está em
-`reports/dashboard_verification.json`. O template passou no `cfn-lint` e o
-Compose foi validado com `docker compose config --quiet`. Build/execução Docker
-e implantação AWS ainda não foram executados: o Docker Engine estava desligado
-e não havia AWS CLI ou credenciais configuradas. A inspeção visual no navegador
-também ficou indisponível no ambiente; o fluxo de interface passou no AppTest.
+Valide a suíte com `uv run pytest -q` e a integração Docker com
+`scripts/verificar_postgres.py`, conforme [o guia do banco](postgres.md).
+O teste local do Docker não confirma o provisionamento na AWS: este requer
+executar o deploy em uma conta autorizada e conferir os serviços na EC2.
 
 - [Streamlit: contêineres Docker e health check](https://docs.streamlit.io/deploy/tutorials/docker)
 - [AWS: AMI Amazon Linux 2023 pelo SSM/CloudFormation](https://docs.aws.amazon.com/linux/al2023/ug/ec2.html)

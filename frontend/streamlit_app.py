@@ -15,11 +15,13 @@ from churn.dashboard import main
 def configure_api():
     # Carrega os Secrets antes da primeira consulta HTTP e respeita env explícito.
     try:
-        for key in ("CHURN_API_URL", "CHURN_API_PUBLIC_URL"):
+        for key in ("CHURN_API_URL", "CHURN_API_PUBLIC_URL", "CHURN_CUSTOMER_SOURCE"):
             if not os.environ.get(key) and key in st.secrets:
                 os.environ[key] = str(st.secrets[key])
     except FileNotFoundError:
         pass  # Execução local sem secrets.toml usa CHURN_API_URL ou localhost.
+    if not os.environ.get("CHURN_CUSTOMER_SOURCE"):
+        os.environ["CHURN_CUSTOMER_SOURCE"] = "api"
 
 
 if __name__ == "__main__":

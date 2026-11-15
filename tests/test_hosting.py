@@ -34,9 +34,11 @@ def test_cloud_entry_uses_secrets_without_replacing_explicit_environment(monkeyp
 
     monkeypatch.setenv("CHURN_API_URL", explicit_url)
     monkeypatch.setenv("CHURN_API_PUBLIC_URL", "")
+    monkeypatch.setenv("CHURN_CUSTOMER_SOURCE", "csv" if explicit_url else "")
     monkeypatch.setattr("streamlit.secrets", {
         "CHURN_API_URL": "https://churn-api.example",
         "CHURN_API_PUBLIC_URL": "https://churn-api.example",
+        "CHURN_CUSTOMER_SOURCE": "api",
     })
     monkeypatch.setattr(dashboard_client, "check_health", lambda: True)
     called_urls = []
@@ -48,10 +50,16 @@ def test_cloud_entry_uses_secrets_without_replacing_explicit_environment(monkeyp
     monkeypatch.setattr(dashboard_client, "predict_customers", predict)
     monkeypatch.setattr("churn.dashboard.predict_customers", predict)
     monkeypatch.setattr("churn.dashboard.check_health", lambda: True)
+    monkeypatch.setattr("churn.dashboard.load_customer_base", lambda: pd.DataFrame([
+        {"customerID": "001", **dashboard_client.EXAMPLE_CUSTOMER},
+    ]))
     app = AppTest.from_file(str(ROOT / "frontend/streamlit_app.py")).run(timeout=30)
     assert not app.exception
     app.button(key="example_0").click().run()
     assert not app.exception
     assert called_urls == [explicit_url or "https://churn-api.example"]
     assert os.environ["CHURN_API_PUBLIC_URL"] == "https://churn-api.example"
+    assert os.environ["CHURN_CUSTOMER_SOURCE"] == ("csv" if explicit_url else "api")
+    if not explicit_url:
+        assert any("Fonte: FastAPI" in element.value for element in app.markdown)
     assert json.loads(app.json[0].value)["predictions"][0] == {"churn_probability": 0.7, "churn_prediction": 1}

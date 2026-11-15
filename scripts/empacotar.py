@@ -18,9 +18,9 @@ def main():
         )
     selection = json.loads((ROOT / "reports/selection.json").read_text(encoding="utf-8"))
     files = []
-    for name in ("pyproject.toml", "uv.lock", ".python-version", "README.md", "Dockerfile", "docker-compose.yml", ".dockerignore", ".gitattributes", "render.yaml"):
+    for name in ("pyproject.toml", "uv.lock", ".python-version", "README.md", "Dockerfile", "Dockerfile.postgres", "Dockerfile.postgres.dockerignore", "docker-compose.yml", "compose.postgres.yml", "compose.ec2.yml", ".dockerignore", ".gitattributes", "render.yaml"):
         files.append(ROOT / name)
-    for name in ("src", "scripts", "tests", "reports", "docs", "aws", "frontend", ".streamlit", selection["export_path"]):
+    for name in ("src", "scripts", "tests", "reports", "docs", "aws", "deploy", "frontend", ".streamlit", selection["export_path"]):
         files.extend(path for path in (ROOT / name).rglob("*") if path.is_file()
                      and "__pycache__" not in path.parts and path.suffix != ".pyc"
                      and path.name != "secrets.toml")

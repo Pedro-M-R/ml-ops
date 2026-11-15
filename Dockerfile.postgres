@@ -1,0 +1,6 @@
+FROM postgres:17-bookworm
+
+# Dados e senhas são montados em execução; a imagem contém apenas a inicialização.
+COPY deploy/postgres/10-customers.sh /docker-entrypoint-initdb.d/10-customers.sh
+COPY deploy/postgres/customers.sql /opt/churn/customers.sql
+RUN chmod 755 /docker-entrypoint-initdb.d/10-customers.sh

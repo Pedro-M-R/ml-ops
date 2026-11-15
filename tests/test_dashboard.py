@@ -11,6 +11,12 @@ from streamlit.testing.v1 import AppTest
 from churn import dashboard_client as client
 
 
+@pytest.fixture(autouse=True)
+def legacy_csv_mode(monkeypatch):
+    # Estes testes também preservam a compatibilidade com o modo CSV explícito.
+    monkeypatch.setenv("CHURN_CUSTOMER_SOURCE", "csv")
+
+
 @pytest.fixture
 def csv_frame():
     return pd.DataFrame([{"customerID": "001", **client.EXAMPLE_CUSTOMER}])
@@ -189,8 +195,9 @@ def test_existing_base_model_and_streamlit_match_fastapi(monkeypatch, tmp_path):
             assert expected["predictions"][0]["churn_prediction"] == expected_class
             assert app.metric[0].value == f"{probabilities[position]:.1%}"
             assert app.metric[1].value == f"{1 - probabilities[position]:.1%}"
-            label = "SIM — tende a continuar pagando" if expected_class == 0 else "NÃO — tende a cancelar o serviço"
+            label = "Tendência de permanência" if expected_class == 0 else "Tendência de cancelamento"
             assert any(label in element.value for element in app.markdown)
+            assert app.metric[2].value == "50%"
 
         # O exemplo é um cliente real e consulta o modelo com um único clique.
         app.button(key="example_0").click().run(timeout=30)
@@ -205,7 +212,7 @@ def test_existing_base_model_and_streamlit_match_fastapi(monkeypatch, tmp_path):
         assert not app.exception
         assert json.loads(app.json[-1].value) == result.attrs["api_response"]
         assert set(app.dataframe[-1].value["Classificação"]) == {
-            "SIM — tende a continuar pagando", "NÃO — tende a cancelar o serviço",
+            "Tendência de permanência", "Tendência de cancelamento",
         }
 
 
@@ -241,7 +248,7 @@ def test_form_displays_api_error_and_clears_previous_result(monkeypatch):
     monkeypatch.setattr(client, "predict_customers", predict)
     app.run()
     app.button(key="example_0").click().run()
-    assert len(app.metric) == 2
+    assert len(app.metric) == 3
     app.button(key="example_1").click().run()
     assert not app.exception
     assert app.error[0].value == "A API não está disponível."

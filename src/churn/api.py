@@ -6,7 +6,7 @@ from typing import Annotated, Literal
 import mlflow.pyfunc
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse, RedirectResponse, Response
@@ -117,6 +117,11 @@ class HealthResponse(BaseModel):
     status: Literal["ok"] = "ok"
 
 
+class CustomerPage(BaseModel):
+    total: int
+    customers: list[CustomerInput]
+
+
 def _probabilities(model, frame: pd.DataFrame) -> np.ndarray:
     # A assinatura MLflow usa double; inteiros JSON também precisam virar float.
     try:
@@ -164,6 +169,37 @@ def create_app(model_uri: str | None = None) -> FastAPI:
         version="0.1.0",
         lifespan=lifespan,
     )
+
+    # Importação aqui evita acoplar o módulo de schemas ao adaptador SQL.
+    from churn import customers as customer_store
+
+    @application.exception_handler(customer_store.CustomerStoreUnavailable)
+    async def customer_store_error(request: Request, exc: Exception):
+        return JSONResponse(status_code=503, content={"detail": "Base de clientes indisponível."})
+
+    @application.get("/customers", response_model=CustomerPage, tags=["Clientes"])
+    def customers(limit: int = Query(500, ge=1, le=1000), offset: int = Query(0, ge=0)):
+        return customer_store.list_customers(limit, offset)
+
+    @application.get("/customers/{customer_id}", response_model=CustomerInput, tags=["Clientes"])
+    def customer(customer_id: str):
+        if not 1 <= len(customer_id.strip()) <= 100:
+            raise HTTPException(status_code=422, detail="Código de cliente inválido.")
+        result = customer_store.find_customer(customer_id)
+        if result is None:
+            raise HTTPException(status_code=404, detail="Cliente não encontrado.")
+        return result
+
+    @application.get("/ready", response_model=HealthResponse, tags=["Saúde"])
+    def ready(request: Request):
+        if getattr(request.app.state, "model", None) is None:
+            raise HTTPException(status_code=503, detail="Modelo indisponível.")
+        import os
+
+        if os.environ.get("CHURN_DB_HOST"):
+            if customer_store.list_customers(1, 0)["total"] == 0:
+                raise HTTPException(status_code=503, detail="Base de clientes vazia.")
+        return HealthResponse()
 
     @application.exception_handler(RequestValidationError)
     async def validation_error(request: Request, exc: RequestValidationError):

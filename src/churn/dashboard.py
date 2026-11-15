@@ -12,13 +12,13 @@ import streamlit as st
 
 from churn.dashboard_client import (
     DashboardError, check_health, customer_from_id, customers_from_frame,
-    load_customer_base, predict_customers,
+    load_customer_base, predict_customers, uses_api_customers,
 )
 
 THRESHOLD = 0.5
 CLASSIFICATION = {
-    0: "SIM — tende a continuar pagando",
-    1: "NÃO — tende a cancelar o serviço",
+    0: "Tendência de permanência",
+    1: "Tendência de cancelamento",
 }
 
 APP_STYLE = """<style>
@@ -71,7 +71,28 @@ APP_STYLE = """<style>
         color:#58734d;border:1px solid #e4e9dd;border-radius:6px;box-shadow:none;font-size:11px;font-weight:500;}
     .st-key-examples [data-testid="stButton"] button:hover {background:#eaf0e2;border-color:#c9d9bc;}
     .st-key-prediction_card {background:#fff;border:1px solid #dfe5da!important;border-radius:16px!important;
-        padding:24px 28px!important;box-shadow:none;margin-top:8px;}
+        padding:30px 34px!important;box-shadow:none;margin-top:28px;}
+    .result-banner {border-radius:12px;padding:22px 26px;margin-bottom:24px;
+        background:#edf5eb;border-left:4px solid #638b55;}
+    .result-banner.leave {background:#faf0e5;border-left-color:#be7c3c;}
+    .result-kicker {font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+        color:#6b825e;margin:0 0 8px;}
+    .result-banner.leave .result-kicker {color:#9a6739;}
+    .result-banner .verdict {font-family:Georgia,serif;font-size:28px;font-weight:400;margin-bottom:8px;}
+    .result-banner .verdict-description {max-width:680px;margin:0;color:#68765f;font-size:13px;}
+    .risk-scale {margin:24px 0 22px;}
+    .scale-heading {display:flex;justify-content:space-between;gap:12px;font-size:12px;color:#617358;margin-bottom:12px;}
+    .scale-heading strong {color:#294f3e;font-weight:650;}
+    .scale-track {height:10px;border-radius:10px;background:#edf0e8;position:relative;}
+    .scale-fill {height:100%;border-radius:10px;background:#61876a;}
+    .scale-fill.leave {background:#bf8b54;}
+    .scale-marker {position:absolute;top:-5px;height:20px;width:2px;background:#314d3b;}
+    .scale-labels {position:relative;height:22px;margin-top:10px;font-size:10px;color:#8b9582;}
+    .scale-labels span {position:absolute;top:0;}
+    .scale-labels .scale-threshold {transform:translateX(-50%);color:#53664a;}
+    .inference-origin {display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;
+        border-top:1px solid #e7ebdf;padding-top:16px;margin:2px 0 18px;font-size:11px;color:#8a9680;}
+    .inference-origin strong {color:#386b54;font-weight:650;}
     .result-heading {display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px;}
     .result-eyebrow {font-size:10px;font-weight:750;letter-spacing:.11em;color:#8a987f;margin:0 0 7px;}
     .result-id {font-size:17px;font-weight:650;color:#203c32;margin:0;}
@@ -119,29 +140,42 @@ def show_prediction(result, customer):
     prediction = int(row.churn_prediction)
     probability = float(row.churn_probability)
     customer_id = escape(str(customer["customerID"]))
-    badge = "Classe 1 · cancelamento" if prediction else "Classe 0 · permanência"
+    response = result.attrs.get("api_response")
+    if response is None:
+        response = {"predictions": json.loads(result.to_json(orient="records", double_precision=15)), "threshold": THRESHOLD}
+    threshold = float(response["threshold"])
+    badge = "Churn · classe 1" if prediction else "Sem churn · classe 0"
     description = (
-        "O perfil deste cliente tem indicação de cancelamento. Vale avaliar uma ação de retenção."
+        "A probabilidade de cancelamento atingiu o limiar da decisão. Este cliente pode precisar de uma ação de retenção."
         if prediction else
-        "O perfil deste cliente tem indicação de permanência no serviço."
+        "A probabilidade de cancelamento ficou abaixo do limiar da decisão. O modelo indica tendência de permanecer no serviço."
     )
     with st.container(border=True, key="prediction_card"):
         st.markdown(f'''<div class="result-heading"><div><p class="result-eyebrow">02 / RESULTADO DA ANÁLISE</p>
-            <p class="result-id">Cliente {customer_id}</p></div>
+            <p class="result-id">Resultado da consulta · {customer_id}</p></div>
             <span class="class-badge {'leave' if prediction else 'stay'}">{badge}</span></div>
+            <div class="result-banner {'leave' if prediction else 'stay'}">
+            <p class="result-kicker">{'Um sinal para acompanhar' if prediction else 'Um relacionamento para cultivar'}</p>
             <p class="verdict">{CLASSIFICATION[prediction]}</p>
-            <p class="verdict-description">{description}</p>''', unsafe_allow_html=True)
-        cancel, stay = st.columns(2)
-        cancel.metric("Chance de cancelar", f"{probability:.1%}")
-        stay.metric("Chance de permanecer", f"{1 - probability:.1%}")
-        st.progress(probability, text="Probabilidade de cancelamento estimada pelo modelo")
-        st.caption("Classificação recebida do modelo treinado · limiar de decisão: 50%.")
+            <p class="verdict-description">{description}</p></div>''', unsafe_allow_html=True)
+        cancel, stay, decision = st.columns(3)
+        cancel.metric("Probabilidade de churn", f"{probability:.1%}")
+        stay.metric("Probabilidade de permanência", f"{1 - probability:.1%}")
+        decision.metric("Limiar da decisão", f"{threshold:.0%}")
+        st.markdown(f'''<div class="risk-scale">
+            <div class="scale-heading"><span>Onde o cliente está na escala</span><strong>{probability:.1%} de churn</strong></div>
+            <div class="scale-track" role="meter" aria-label="Probabilidade de churn" aria-valuemin="0"
+                aria-valuemax="100" aria-valuenow="{probability * 100:.2f}">
+                <div class="scale-fill {'leave' if prediction else 'stay'}" style="width:{probability * 100:.4f}%"></div>
+                <div class="scale-marker" style="left:{threshold * 100:.4f}%"></div></div>
+            <div class="scale-labels"><span style="left:0">0%</span>
+                <span class="scale-threshold" style="left:{threshold * 100:.4f}%">Decisão em {threshold:.0%}</span>
+                <span style="right:0">100%</span></div></div>
+            <div class="inference-origin"><span>Fonte da inferência <strong>FastAPI</strong></span>
+            <span>Churn quando a probabilidade ≥ {threshold:.0%}</span></div>''', unsafe_allow_html=True)
         with st.expander("Ver dados utilizados na análise"):
             st.dataframe(pd.DataFrame([customer]), hide_index=True, width="stretch")
-        with st.expander("Ver resposta original da API"):
-            response = result.attrs.get("api_response")
-            if response is None:
-                response = {"predictions": json.loads(result.to_json(orient="records", double_precision=15)), "threshold": THRESHOLD}
+        with st.expander("Ver resposta original da API", expanded=True):
             st.json(response)
             st.download_button("Baixar resultado em JSON", json.dumps(response, ensure_ascii=False, indent=2),
                                file_name=f"previsao_{customer['customerID']}.json", mime="application/json", key="single_json")
@@ -177,10 +211,7 @@ def lookup(frame):
                 st.session_state["customer_prediction"] = (result, customer)
             except DashboardError as exc:
                 st.error(str(exc))
-    if "customer_prediction" in st.session_state:
-        result, customer = st.session_state["customer_prediction"]
-        show_prediction(result, customer)
-    else:
+    if "customer_prediction" not in st.session_state:
         st.markdown('''<div class="empty-result"><span class="empty-icon" aria-hidden="true">⌁</span>
             <p class="empty-title">Sua próxima análise começa aqui</p>
             <p class="empty-description">Consulte um cliente para visualizar a probabilidade<br>
@@ -189,7 +220,7 @@ def lookup(frame):
 
 def portfolio(frame):
     with st.expander("Consultar a base completa"):
-        st.caption(f"Classifique os {len(frame):,} clientes de churn.csv com o mesmo modelo.")
+        st.caption(f"Classifique os {len(frame):,} clientes da base com o mesmo modelo.")
         if st.button("Classificar toda a base", key="classify_base"):
             st.session_state.pop("portfolio_prediction", None)
             try:
@@ -215,17 +246,18 @@ def main():
     try:
         frame = load_customer_base()
         if "customerID" not in frame or frame.customerID.astype("string").str.strip().eq("").any() or frame.customerID.isna().any():
-            raise DashboardError("A base churn.csv precisa ter um customerID preenchido para cada cliente.")
+            raise DashboardError("A base precisa ter um customerID preenchido para cada cliente.")
     except DashboardError as exc:
         st.error(str(exc))
         return
     connected = check_health()
+    source = "FastAPI" if uses_api_customers() else "churn.csv"
     status = "Modelo disponível" if connected else "Modelo iniciando ou indisponível"
     count = f"{len(frame):,}".replace(",", ".")
     st.markdown(f'''<div class="app-bar"><div class="wordmark">
         <span class="brand-symbol" aria-hidden="true">p</span><div><div class="brand-name">permanência</div>
         <div class="brand-subtitle">Análise de clientes</div></div></div>
-        <div class="app-status"><span>Base: churn.csv</span>
+        <div class="app-status"><span>Fonte: {source}</span>
         <span><i class="status-dot{'' if connected else ' waiting'}"></i>{status}</span></div></div>''', unsafe_allow_html=True)
     introduction, workspace = st.columns([0.86, 1.14], gap="large")
     with introduction:
@@ -235,10 +267,13 @@ def main():
             Encontre o perfil, veja a previsão e tenha mais contexto para sua próxima decisão.</p>''', unsafe_allow_html=True)
         st.markdown(f'''<div class="source-card"><div class="source-label">Sua carteira, em perspectiva</div>
             <div class="source-count">{count}</div><p class="source-description">clientes disponíveis para análise<br>
-            na base que você já utiliza.</p><div class="source-foot"><span>Fonte <strong>churn.csv</strong></span>
+            na base que você já utiliza.</p><div class="source-foot"><span>Fonte <strong>{source}</strong></span>
             <span>Modelo <strong>já treinado</strong></span></div></div>''', unsafe_allow_html=True)
     with workspace:
         lookup(frame)
+    if "customer_prediction" in st.session_state:
+        result, customer = st.session_state["customer_prediction"]
+        show_prediction(result, customer)
     st.markdown('''<div class="app-footer"><span>Previsões com o modelo treinado neste projeto.</span>
         <span>Churn estima cancelamento do serviço; não garante pagamentos futuros.</span></div>''', unsafe_allow_html=True)
     portfolio(frame)

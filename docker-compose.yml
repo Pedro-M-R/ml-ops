@@ -1,6 +1,12 @@
+x-logging: &default-logging
+  driver: json-file
+  options: {max-size: 10m, max-file: "3"}
+
 services:
   api:
     build: .
+    image: churn-app:local
+    logging: *default-logging
     restart: unless-stopped
     ports:
       - "127.0.0.1:8000:8000"
@@ -12,6 +18,8 @@ services:
       retries: 12
   dashboard:
     build: .
+    image: churn-app:local
+    logging: *default-logging
     restart: unless-stopped
     environment:
       CHURN_API_URL: http://api:8000

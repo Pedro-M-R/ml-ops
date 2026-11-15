@@ -24,8 +24,14 @@ class DashboardError(Exception):
     """Erro apropriado para exibição na interface, sem dados dos clientes."""
 
 
+def uses_api_customers():
+    return (os.environ.get("CHURN_CUSTOMER_SOURCE") or "api") == "api"
+
+
 def load_customer_base():
-    """Lê a base existente sem depender das bibliotecas de treino na tela."""
+    """Obtém a carteira da FastAPI; o CSV exige seleção explícita do modo legado."""
+    if uses_api_customers():
+        return _load_api_customers()
     root = Path(__file__).resolve().parents[2]
     configured = os.environ.get("CHURN_DATA_PATH")
     path = Path(configured) if configured else root / "data/churn.csv"
@@ -42,6 +48,33 @@ def load_customer_base():
     return frame
 
 
+def _load_api_customers():
+    """A tela recebe os registros pela API e nunca as credenciais do banco."""
+    rows = []
+    try:
+        with httpx.Client(base_url=api_url(), timeout=15.0) as client:
+            while True:
+                response = client.get("/customers", params={"limit": BATCH_SIZE, "offset": len(rows)})
+                response.raise_for_status()
+                page = response.json()
+                batch = page["customers"]
+                total = page["total"]
+                if not isinstance(batch, list) or not isinstance(total, int) or not 1 <= total <= MAX_CSV_ROWS:
+                    raise ValueError("Base fora do limite")
+                if not batch or len(batch) > BATCH_SIZE or len(rows) + len(batch) > total:
+                    raise ValueError("Página inválida")
+                rows.extend(batch)
+                if len(rows) == total:
+                    break
+        frame = pd.DataFrame(rows)
+        customers_from_frame(frame)
+        if frame.customerID.isna().any() or frame.customerID.str.strip().eq("").any() or frame.customerID.duplicated().any():
+            raise ValueError("Identificadores inválidos")
+        return frame
+    except (httpx.HTTPError, ValueError, KeyError, TypeError, AttributeError) as exc:
+        raise DashboardError("Não foi possível consultar os clientes pela FastAPI. Confira o serviço configurado.") from exc
+
+
 def customer_from_id(frame: pd.DataFrame, customer_id: str):
     """Localiza o registro existente; nunca inventa dados para um ID desconhecido."""
     code = customer_id.strip().casefold()
@@ -51,7 +84,8 @@ def customer_from_id(frame: pd.DataFrame, customer_id: str):
         raise DashboardError("A base churn.csv precisa da coluna customerID para localizar os clientes.")
     matches = frame.loc[frame.customerID.astype("string").str.strip().str.casefold().eq(code).fillna(False)]
     if matches.empty:
-        raise DashboardError("Cliente não encontrado no churn.csv. Confira o código ou experimente um dos exemplos abaixo.")
+        source = "na base fornecida pela FastAPI" if uses_api_customers() else "no churn.csv"
+        raise DashboardError(f"Cliente não encontrado {source}. Confira o código ou experimente um dos exemplos abaixo.")
     if len(matches) != 1:
         raise DashboardError("Há mais de um registro para esse código no churn.csv. Confira os identificadores da base.")
     return customers_from_frame(matches)[0]
@@ -63,7 +97,8 @@ def api_url():
 
 def check_health():
     try:
-        response = httpx.get(f"{api_url()}/health", timeout=3.0)
+        path = "/ready" if uses_api_customers() else "/health"
+        response = httpx.get(f"{api_url()}{path}", timeout=10.0)
         response.raise_for_status()
         return response.json().get("status") == "ok"
     except (httpx.HTTPError, ValueError, AttributeError):
