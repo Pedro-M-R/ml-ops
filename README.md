@@ -133,14 +133,3 @@ ser executada na pasta do projeto com:
 uv sync --locked --python 3.13
 uv run pytest -q
 ```
-
-As instruções de instalação e publicação foram separadas por necessidade:
-
-- [Apresentar o projeto completo, com uma fala simples por etapa](docs/apresentacao_projeto.md)
-- [Entender a função de cada pasta e arquivo](docs/mapa_repositorio.md)
-- [Iniciar o ambiente Docker com PostgreSQL](docs/postgres.md)
-- [Publicar na AWS e configurar o acesso público](docs/deploy_aws.md)
-- [Consultar a alternativa de publicação no Render](docs/deploy_render_streamlit.md)
-- [Preparar o banco no Render](docs/deploy_render_postgres.md)
-- [Ler o registro explicativo do desenvolvimento](docs/relato_projeto.md)
-- [Consultar os exercícios anteriores](docs/historico_exercicios.md)
