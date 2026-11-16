@@ -8,11 +8,6 @@ comparação de modelos e publicação de uma interface para apresentar as previ
 
 **[Acessar o front-end](http://3.128.155.198:8501)**
 
-**[Roteiro de apresentação do projeto completo](docs/apresentacao_projeto.md)**
-
-[Mapa das pastas e arquivos do repositório](docs/mapa_repositorio.md) ·
-[Detalhes técnicos a partir do MLflow](docs/apresentacao_mlflow.md)
-
 O painel está hospedado em uma máquina virtual EC2 na AWS e pode ser acessado
 por outras pessoas, inclusive fora da rede utilizada no desenvolvimento.
 A aplicação permanece disponível enquanto a EC2 estiver em funcionamento,
