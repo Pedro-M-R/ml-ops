@@ -1,7 +1,7 @@
 # Publicar a API no Render e a tela no Streamlit Cloud
 
-Este guia foi mantido como alternativa. A demonstração atual está publicada
-na AWS, conforme o [guia da EC2](deploy_aws.md).
+> Alternativa de hospedagem. A implantação principal atual utiliza AWS EC2 com
+> Streamlit, FastAPI e PostgreSQL, conforme o [guia AWS](deploy_aws.md).
 
 **Para incluir o PostgreSQL na hospedagem existente**, siga primeiro
 [o roteiro de API + PostgreSQL no Render](deploy_render_postgres.md).

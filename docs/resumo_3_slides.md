@@ -1,3 +1,6 @@
+> Resumo histórico da etapa de seleção e empacotamento. Para apresentar o projeto
+> atual, incluindo PostgreSQL e hospedagem AWS, use o [roteiro completo](apresentacao_projeto.md).
+
 # Slide 1 — Do MLflow ao ajuste dos modelos
 
 - Base: **7.043 clientes**; divisão estratificada em 5.282 para treino e 1.761 para teste.

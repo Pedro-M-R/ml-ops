@@ -8,6 +8,11 @@ comparação de modelos e publicação de uma interface para apresentar as previ
 
 **[Acessar o front-end](http://3.128.155.198:8501)**
 
+**[Roteiro de apresentação do projeto completo](docs/apresentacao_projeto.md)**
+
+[Mapa das pastas e arquivos do repositório](docs/mapa_repositorio.md) ·
+[Detalhes técnicos a partir do MLflow](docs/apresentacao_mlflow.md)
+
 O painel está hospedado em uma máquina virtual EC2 na AWS e pode ser acessado
 por outras pessoas, inclusive fora da rede utilizada no desenvolvimento.
 A aplicação permanece disponível enquanto a EC2 estiver em funcionamento,
@@ -19,27 +24,26 @@ foi preparado um modelo para estimar o churn, termo utilizado para o
 cancelamento de um serviço. O resultado do treinamento foi transformado em
 um recurso de consulta, acessível pelo código de cada cliente.
 
-## A decisão de levar o projeto para a internet
+## Hospedagem atual na AWS
 
-Executar o modelo no computador foi uma etapa do desenvolvimento. Para permitir
-o acesso à demonstração sem manter esse computador ligado, foi realizada a
-separação entre o ambiente local e os serviços de hospedagem.
+**A aplicação está hospedada na AWS, em uma EC2 na região Ohio (`us-east-2`).**
+Docker Compose inicia os três serviços na mesma máquina: Streamlit para o painel,
+FastAPI para consultas e previsões e PostgreSQL para armazenar os clientes.
+Essa publicação permite acessar a demonstração sem manter o computador de
+desenvolvimento ligado.
 
-Inicialmente, foi utilizado o **Render para hospedar a API e o painel Streamlit
-em serviços separados**. O Render é uma plataforma que disponibiliza aplicações
-em servidores na nuvem. Essa opção permitiu publicar o projeto enquanto a
-configuração inicial na AWS ainda não havia sido concluída.
-[Conhecer o Render](https://render.com/docs/web-services)
+Foi utilizada uma instância `c7i-flex.large`, com 4 GiB de memória. Na implantação,
+a opção inicial `t3.medium` foi recusada por elegibilidade do plano da conta, e o
+tipo foi ajustado após a consulta às opções disponíveis na região.
 
-Posteriormente, foi concluída a **publicação na AWS, em uma EC2 na região Ohio**.
-Foi utilizado Docker Compose para iniciar Streamlit, FastAPI e PostgreSQL na
-mesma máquina. Na implantação, a instância `t3.medium` foi recusada por não ser
-elegível ao plano gratuito da conta. Após consultar as opções disponíveis, foi
-utilizada a `c7i-flex.large`, com 4 GiB de memória.
+Somente o painel recebe acesso externo, na porta 8501. A API e o PostgreSQL
+se comunicam pela rede interna Docker. O modelo exportado acompanha a API;
+o histórico de experimentos MLflow permanece no ambiente local.
 
-O acesso externo foi habilitado na porta 8501, permitindo compartilhar o painel
-por IP público. Os arquivos de publicação no Render foram mantidos como
-alternativa de hospedagem.
+O Render fez parte de uma etapa anterior. Seus arquivos foram preservados
+como alternativa e registro do desenvolvimento; **a hospedagem principal atual
+é a AWS**. O procedimento de implantação e atualização está no
+[guia AWS](docs/deploy_aws.md).
 
 ## Uma consulta com informações para interpretar
 
@@ -137,6 +141,8 @@ uv run pytest -q
 
 As instruções de instalação e publicação foram separadas por necessidade:
 
+- [Apresentar o projeto completo, com uma fala simples por etapa](docs/apresentacao_projeto.md)
+- [Entender a função de cada pasta e arquivo](docs/mapa_repositorio.md)
 - [Iniciar o ambiente Docker com PostgreSQL](docs/postgres.md)
 - [Publicar na AWS e configurar o acesso público](docs/deploy_aws.md)
 - [Consultar a alternativa de publicação no Render](docs/deploy_render_streamlit.md)

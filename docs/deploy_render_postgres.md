@@ -1,8 +1,12 @@
 # Publicar API e PostgreSQL no Render
 
-Este roteiro aproveita sua API já criada no Render e mantém o painel em
-`https://mlopsjose.streamlit.app/`. O computador local só é necessário para enviar
-o código e importar a carteira uma vez. Depois, a aplicação funciona com o PC desligado.
+> Alternativa de hospedagem. A implantação principal atual utiliza AWS EC2 com
+> Streamlit, FastAPI e PostgreSQL, conforme o [guia AWS](deploy_aws.md).
+
+Nesta alternativa, a API e o PostgreSQL ficam no Render e o painel pode executar
+separadamente no Streamlit Cloud ou no próprio Render. Configure os endereços
+dos serviços criados para essa instalação. O computador local é utilizado para
+enviar o código e importar a carteira; a execução dos serviços ocorre na nuvem.
 
 ```mermaid
 flowchart LR

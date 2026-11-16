@@ -31,7 +31,10 @@ def main():
         parameters = f"C={fmt(result['params']['C'], 1)}, regularização L2, class_weight={result['params']['class_weight']}"
     comparison = (f"A vantagem para o segundo colocado foi de apenas **{fmt(gap, 5)}**: diferença pequena, sem evidência de superioridade estatística."
                   if gap < 0.001 else f"Vantagem de **{fmt(gap, 5)}** sobre o segundo colocado; não foi realizado teste de significância.")
-    text = f"""# Slide 1 — Do MLflow ao ajuste dos modelos
+    text = f"""> Resumo histórico da etapa de seleção e empacotamento. Para apresentar o projeto
+> atual, incluindo PostgreSQL e hospedagem AWS, use o [roteiro completo](apresentacao_projeto.md).
+
+# Slide 1 — Do MLflow ao ajuste dos modelos
 
 - Base: **{fmt(result['total_rows'])} clientes**; divisão estratificada em {fmt(result['train_rows'])} para treino e {fmt(result['test_rows'])} para teste.
 - **21 configurações + 1 referência**, comparadas com validação cruzada de 5 partes: 110 ajustes.
